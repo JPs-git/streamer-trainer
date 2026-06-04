@@ -1,0 +1,26 @@
+server:
+  host: "127.0.0.1"
+  port: 8765
+
+asr:
+  model_size: "base"
+  device: "cpu"
+  compute_type: "int8"
+  download_timeout: 30.0
+
+llm:
+  provider: "openai"
+  api_key_env: "MOONSHOT_API_KEY"
+  base_url: "https://api.moonshot.cn/v1"
+  model: "moonshot-v1-8k"
+  selector_model: "moonshot-v1-8k"
+  timeout: 10.0
+  temperature: 0.8
+  max_tokens: 150
+
+viewer:
+  min_active: 3
+  max_active: 8
+  entry_interval_sec: 180
+  cooldown_sec: 300
+  memory_max_streamer_log: 50

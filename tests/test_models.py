@@ -1,0 +1,43 @@
+from backend.viewer.models import VirtualViewer, ViewerMemory
+
+
+def test_viewer_creation():
+    v = VirtualViewer(
+        viewer_id="test_01",
+        name="小冰",
+        persona="新来的好奇宝宝",
+        personality_type="curious",
+    )
+    assert v.viewer_id == "test_01"
+    assert v.name == "小冰"
+    assert v.state == "inactive"
+    assert v.interaction_count == 0
+
+
+def test_memory_append_streamer_log():
+    mem = ViewerMemory()
+    mem.add_streamer_log("今天来玩一个新游戏", 12)
+    assert len(mem.streamer_log) == 1
+    assert mem.streamer_log[0]["text"] == "今天来玩一个新游戏"
+
+
+def test_memory_append_danmaku():
+    mem = ViewerMemory()
+    mem.add_my_danmaku("这游戏叫什么", 14, "streamer")
+    assert len(mem.my_danmaku) == 1
+    assert mem.my_danmaku[0]["directed_to"] == "streamer"
+
+
+def test_memory_append_other_danmaku():
+    mem = ViewerMemory()
+    mem.add_other_danmaku("aqiang", "streamer", "夸主播操作好")
+    assert len(mem.other_danmaku) == 1
+    assert mem.other_danmaku[0]["from_id"] == "aqiang"
+
+
+def test_relationship_update():
+    mem = ViewerMemory()
+    mem.update_relationship("aqiang", "友善，他帮过我")
+    assert mem.relationships["aqiang"] == "友善，他帮过我"
+    mem.update_relationship("aqiang", "他刚才反驳我，不太喜欢")
+    assert mem.relationships["aqiang"] == "他刚才反驳我，不太喜欢"
