@@ -1,5 +1,8 @@
 from __future__ import annotations
+import logging
 from typing import Any, Optional
+
+logger = logging.getLogger("llm")
 
 
 class LLMClient:
@@ -46,9 +49,13 @@ class LLMClient:
         raise ValueError(f"Unsupported provider: {self.provider}")
 
     async def chat(self, system: str, user: str, model: Optional[str] = None) -> str:
+        model_name = model or self.model
+        logger.debug("=== LLM Request [%s] ===", model_name)
+        logger.debug("System:\n%s", system)
+        logger.debug("User:\n%s", user)
         if self.provider == "openai":
             resp = await self._client.chat.completions.create(
-                model=model or self.model,
+                model=model_name,
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
                 messages=[
@@ -56,14 +63,20 @@ class LLMClient:
                     {"role": "user", "content": user},
                 ],
             )
-            return resp.choices[0].message.content or ""
+            content = resp.choices[0].message.content or ""
+            logger.debug("Response:\n%s", content)
+            logger.debug("=== LLM End ===")
+            return content
         elif self.provider == "anthropic":
             resp = await self._client.messages.create(
-                model=model or self.model,
+                model=model_name,
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
                 system=system,
                 messages=[{"role": "user", "content": user}],
             )
-            return resp.content[0].text if resp.content else ""
+            content = resp.content[0].text if resp.content else ""
+            logger.debug("Response:\n%s", content)
+            logger.debug("=== LLM End ===")
+            return content
         raise ValueError(f"Unsupported provider: {self.provider}")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 import asyncio
 import logging
+import os
 import time
 from contextlib import asynccontextmanager
 from typing import Optional
@@ -11,11 +12,23 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from pathlib import Path
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(name)s] %(levelname)s %(message)s",
-    datefmt="%H:%M:%S",
-)
+_LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
+_LOG_DIR.mkdir(exist_ok=True)
+
+_fmt = logging.Formatter("%(asctime)s [%(name)s] %(levelname)s %(message)s", datefmt="%H:%M:%S")
+
+_console = logging.StreamHandler()
+_console.setLevel(logging.INFO)
+_console.setFormatter(_fmt)
+
+_file = logging.FileHandler(str(_LOG_DIR / "app.log"), mode="a", encoding="utf-8")
+_file.setLevel(logging.DEBUG)
+_file.setFormatter(_fmt)
+
+root = logging.getLogger()
+root.setLevel(logging.DEBUG)
+root.addHandler(_console)
+root.addHandler(_file)
 
 from backend.config import config
 from backend.asr import ASREngine
