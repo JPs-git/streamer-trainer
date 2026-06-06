@@ -1,4 +1,3 @@
-const API_BASE = location.origin;
 const WS_URL = `ws://${location.host}/danmaku`;
 let ws = null;
 let reconnectTimer = null;
@@ -64,28 +63,34 @@ function handleMessage(data) {
 
 // --- Scheduler control ---
 
-let schedulerPaused = true;  // 调度器默认暂停
+let schedulerPaused = true;
 
-document.getElementById('btn-toggle-scheduler').addEventListener('click', async () => {
+document.addEventListener('DOMContentLoaded', () => {
   const btn = document.getElementById('btn-toggle-scheduler');
-  const statusEl = document.getElementById('scheduler-status');
-  const action = schedulerPaused ? 'resume' : 'pause';
-  try {
-    const resp = await fetch(`${API_BASE}/control/scheduler`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({action}),
-    });
-    const data = await resp.json();
-    if (data.status === 'ok') {
-      schedulerPaused = data.paused;
-      btn.textContent = schedulerPaused ? '▶ 开始' : '⏸ 暂停';
-      statusEl.textContent = schedulerPaused ? '● 已暂停' : '● 运行中';
-      statusEl.className = schedulerPaused ? 'status-paused' : 'status-running';
-    }
-  } catch (err) {
-    console.error('Scheduler control failed:', err);
+  if (!btn) {
+    console.error('Scheduler button not found');
+    return;
   }
+  btn.addEventListener('click', async () => {
+    const statusEl = document.getElementById('scheduler-status');
+    const action = schedulerPaused ? 'resume' : 'pause';
+    try {
+      const resp = await fetch('/control/scheduler', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action}),
+      });
+      const data = await resp.json();
+      if (data.status === 'ok') {
+        schedulerPaused = data.paused;
+        btn.textContent = schedulerPaused ? '▶ 开始' : '⏸ 暂停';
+        statusEl.textContent = schedulerPaused ? '● 已暂停' : '● 运行中';
+        statusEl.className = schedulerPaused ? 'status-paused' : 'status-running';
+      }
+    } catch (err) {
+      console.error('Scheduler control failed:', err);
+    }
+  });
 });
 
 connect();
