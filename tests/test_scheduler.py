@@ -195,3 +195,23 @@ async def test_backfill_below_min_active(scheduler, manager, agent):
     agent.decide.return_value = []
     await scheduler._tick()
     assert len(manager.get_active_viewers()) >= manager.min_active
+
+
+@pytest.mark.asyncio
+async def test_tick_broadcasts_status(scheduler, manager, agent):
+    add_viewer(manager, "v1", "Alice", engagement=80)
+    add_viewer(manager, "v2", "Bob", engagement=60)
+    agent.decide.return_value = []
+
+    scheduler.broadcast_status = AsyncMock()
+    await scheduler._tick()
+
+    scheduler.broadcast_status.assert_awaited_once()
+    msg = scheduler.broadcast_status.await_args.args[0]
+    assert msg["type"] == "status"
+    assert msg["active_count"] == 2
+    assert msg["max_active"] == 4
+    assert msg["min_active"] == 2
+    assert len(msg["viewers"]) == 2
+    viewer_ids = {v["id"] for v in msg["viewers"]}
+    assert viewer_ids == {"v1", "v2"}

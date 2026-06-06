@@ -52,6 +52,10 @@ function handleMessage(data) {
       div.textContent = `🔴 ${data.name} 离开了直播间`;
     }
     countEl.textContent = `${viewerCount}人在线`;
+  } else if (data.type === 'status') {
+    viewerCount = data.active_count;
+    countEl.textContent = `${viewerCount}人在线`;
+    return;  // 不追加到聊天区
   }
 
   if (div.textContent || div.childNodes.length) {

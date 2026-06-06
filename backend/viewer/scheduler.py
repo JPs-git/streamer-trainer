@@ -27,6 +27,7 @@ class ViewerScheduler:
         engagement_threshold: int = 20,
         broadcast_system: Optional[Callable] = None,
         broadcast_danmaku: Optional[Callable] = None,
+        broadcast_status: Optional[Callable] = None,
         streamer_timeline: Optional[list[dict]] = None,
     ):
         self.manager = manager
@@ -37,6 +38,7 @@ class ViewerScheduler:
         self.engagement_threshold = engagement_threshold
         self.broadcast_system = broadcast_system
         self.broadcast_danmaku = broadcast_danmaku
+        self.broadcast_status = broadcast_status
         self.streamer_timeline = streamer_timeline if streamer_timeline is not None else []
         self._last_speech_index = 0
         self._running = False
@@ -138,6 +140,28 @@ class ViewerScheduler:
             await self._backfill_to_min()
 
         self._last_speech_index = timeline_len
+
+        # 5. Broadcast viewer status heartbeat
+        active = self.manager.get_active_viewers()
+        if self.broadcast_status:
+            viewer_list = [
+                {
+                    "id": v.viewer_id,
+                    "name": v.name,
+                    "persona": v.persona,
+                    "follows": v.follows,
+                    "relationship": v.relationship,
+                    "engagement": v.engagement,
+                }
+                for v in active
+            ]
+            await self.broadcast_status({
+                "type": "status",
+                "active_count": len(active),
+                "max_active": self.manager.max_active,
+                "min_active": self.manager.min_active,
+                "viewers": viewer_list,
+            })
 
     # ------------------------------------------------------------------
     # Agent action handlers

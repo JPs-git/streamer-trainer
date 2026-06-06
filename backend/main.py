@@ -93,6 +93,7 @@ class StreamerTrainerApp:
             engagement_threshold=config.viewer_engagement_threshold,
             broadcast_system=self.broadcast_system,
             broadcast_danmaku=self.broadcast_danmaku,
+            broadcast_status=self.broadcast_status,
             streamer_timeline=self.streamer_timeline,
         )
 
@@ -107,6 +108,15 @@ class StreamerTrainerApp:
         self.danmaku_clients -= dead
 
     async def broadcast_danmaku(self, msg: dict):
+        dead: set[WebSocket] = set()
+        for ws in self.danmaku_clients:
+            try:
+                await ws.send_json(msg)
+            except Exception:
+                dead.add(ws)
+        self.danmaku_clients -= dead
+
+    async def broadcast_status(self, msg: dict):
         dead: set[WebSocket] = set()
         for ws in self.danmaku_clients:
             try:
