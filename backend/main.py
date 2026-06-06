@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+import logging
 import time
 from contextlib import asynccontextmanager
 from typing import Optional
@@ -9,6 +10,12 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from pathlib import Path
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(name)s] %(levelname)s %(message)s",
+    datefmt="%H:%M:%S",
+)
 
 from backend.config import config
 from backend.asr import ASREngine
@@ -88,12 +95,18 @@ class _LazyAppState:
         return getattr(_LazyAppState._instance, name)
 
 
+logger = logging.getLogger("main")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("Starting scheduler...")
     task = asyncio.create_task(app_state.scheduler.start())
+    logger.info("App ready")
     yield
+    logger.info("Shutting down scheduler...")
     app_state.scheduler.stop()
     task.cancel()
+    logger.info("Shutdown complete")
 
 
 app_state: StreamerTrainerApp = _LazyAppState()
@@ -169,6 +182,7 @@ async def debug_text_endpoint(body: DebugText):
     try:
         timestamp = int(time.time())
         app_state.streamer_timeline.append({"text": body.text, "offset": timestamp})
+        logger.info("Timeline: + '%s' (total %d entries)", body.text, len(app_state.streamer_timeline))
         return {"status": "ok"}
     except Exception as e:
         import traceback

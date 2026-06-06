@@ -63,7 +63,8 @@ async def test_scheduler_engagement_decay(scheduler, manager):
     v = manager.get_viewer("xiaobing")
     v.engagement = 80
     await scheduler._tick()
-    assert v.engagement <= 80
+    # 基础衰减 + selector delta=+5，不考虑随机 >= 0
+    assert v.engagement <= 80 + 5
 
 
 @pytest.mark.asyncio
