@@ -32,7 +32,9 @@ class VirtualViewer:
     viewer_id: str
     name: str
     persona: str
-    personality_type: Literal["curious", "cheerful", "aggressive", "bystander"]
+    follows: bool = True
+    relationship: str = ""
+    personality_type: str = ""
     state: Literal["inactive", "active", "cooldown"] = "inactive"
     memory: ViewerMemory = field(default_factory=ViewerMemory)
     entry_time: Optional[int] = None

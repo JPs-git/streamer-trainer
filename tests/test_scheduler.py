@@ -1,7 +1,8 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from backend.viewer.manager import ViewerManager
-from backend.viewer.scheduler import ViewerScheduler, PERSONALITY_DECAY_BASE, ENGAGEMENT_MIN, ENGAGEMENT_MAX
+from backend.viewer.scheduler import ViewerScheduler
+from backend.viewer.models import VirtualViewer
 
 
 @pytest.fixture
@@ -10,20 +11,16 @@ def manager():
 
 
 @pytest.fixture
-def llm():
+def agent():
     m = MagicMock()
-    m.chat = AsyncMock(return_value='[{"id": "xiaobing", "engagement_delta": 5, "speak": "ask_question", "leave": false}]')
-    m.selector_model = "test-model"
+    m.decide = AsyncMock(return_value=[])
     return m
 
 
 @pytest.fixture
-def selector():
+def llm():
     m = MagicMock()
-    m.build_pulse_prompt = MagicMock(return_value="prompt")
-    m.parse_pulse_response = MagicMock(return_value=[
-        {"id": "xiaobing", "engagement_delta": 5, "speak": "ask_question", "leave": False},
-    ])
+    m.chat = AsyncMock(return_value="你好呀")
     return m
 
 
@@ -36,159 +33,149 @@ def generator():
 
 
 @pytest.fixture
-def scheduler(manager, llm, selector, generator):
+def scheduler(manager, agent, llm, generator):
     s = ViewerScheduler(
         manager=manager,
+        agent=agent,
         llm=llm,
-        selector=selector,
         generator=generator,
         tick_interval=0.1,
-        entry_interval=0.1,
         engagement_threshold=20,
     )
-    s._startup_filled = True  # tests manually activate viewers
-    s._paused = False  # tests expect running scheduler
+    s._paused = False
     return s
 
 
+def add_viewer(manager: ViewerManager, vid: str, name: str, engagement: int = 80):
+    v = VirtualViewer(viewer_id=vid, name=name, persona="测试", engagement=engagement)
+    manager.add_viewer(v)
+    manager.activate_viewer(vid)
+    return v
+
+
 @pytest.mark.asyncio
-async def test_scheduler_tick_calls_selector(scheduler, manager, selector):
-    manager.activate_viewer("xiaobing")
+async def test_tick_calls_agent(scheduler, manager, agent):
+    add_viewer(manager, "v1", "小冰")
     await scheduler._tick()
-    assert selector.build_pulse_prompt.called
+    assert agent.decide.called
 
 
 @pytest.mark.asyncio
-async def test_scheduler_engagement_decay(scheduler, manager):
-    manager.activate_viewer("xiaobing")
-    v = manager.get_viewer("xiaobing")
-    v.engagement = 80
-    await scheduler._tick()
-    # 基础衰减 + selector delta=+5，不考虑随机 >= 0
-    assert v.engagement <= 80 + 5
-
-
-@pytest.mark.asyncio
-async def test_scheduler_delta_applied(scheduler, manager):
-    manager.activate_viewer("xiaobing")
-    v = manager.get_viewer("xiaobing")
-    v.engagement = 50
-    await scheduler._tick()
-    # decay + delta 5
-    assert v.engagement < 55
-
-
-@pytest.mark.asyncio
-async def test_scheduler_leave_respects_min_active(scheduler, manager, selector):
-    manager.activate_viewer("xiaobing")
-    manager.activate_viewer("xiaoxin")
-    selector.parse_pulse_response.return_value = [
-        {"id": "xiaobing", "engagement_delta": 0, "speak": None, "leave": True},
-        {"id": "xiaoxin", "engagement_delta": 0, "speak": None, "leave": False},
-    ]
-    await scheduler._tick()
-    # min_active=2 so xiaobing should NOT leave
-    assert manager.get_viewer("xiaobing").state == "active"
-
-
-@pytest.mark.asyncio
-async def test_scheduler_entry_timing(scheduler, manager):
-    """新观众应在 entry_interval 后进场"""
-    assert len(manager.get_active_viewers()) == 0
-    await scheduler._tick()
-    assert len(manager.get_active_viewers()) >= 1
-
-
-@pytest.mark.asyncio
-async def test_scheduler_handles_empty_active(scheduler, manager):
+async def test_tick_handles_empty_active(scheduler, agent):
     """无活跃观众时不 crash"""
     await scheduler._tick()
 
 
 @pytest.mark.asyncio
-async def test_scheduler_broadcast_system_on_leave(scheduler, manager, selector):
-    broadcast_mock = AsyncMock()
-    scheduler.broadcast_system = broadcast_mock
-    manager.min_active = 1
-    manager.activate_viewer("xiaobing")
-    manager.activate_viewer("xiaoxin")
-    manager.activate_viewer("mengmeng")
-    selector.parse_pulse_response.return_value = [
-        {"id": "xiaobing", "engagement_delta": 0, "speak": None, "leave": True},
-        {"id": "xiaoxin", "engagement_delta": 0, "speak": None, "leave": False},
-    ]
+async def test_agent_spawn_viewer(scheduler, manager, agent):
+    manager.min_active = 0  # prevent backfill
+    agent.decide.return_value = [{
+        "type": "spawn_viewer",
+        "name": "小华",
+        "persona": "热情观众",
+        "follows": True,
+        "relationship": "老粉",
+        "engagement": 85,
+    }]
     await scheduler._tick()
-    assert broadcast_mock.called
+    assert len(manager.get_active_viewers()) == 1
+    v = manager.get_active_viewers()[0]
+    assert v.name == "小华"
+    assert v.relationship == "老粉"
+    assert v.follows is True
 
 
 @pytest.mark.asyncio
-async def test_scheduler_broadcast_system_on_entry(scheduler, manager):
-    broadcast_mock = AsyncMock()
-    scheduler.broadcast_system = broadcast_mock
-    scheduler._last_entry_time = -9999
+async def test_agent_adjust_engagement(scheduler, manager, agent):
+    v = add_viewer(manager, "v1", "小冰", engagement=50)
+    agent.decide.return_value = [{
+        "type": "adjust_engagement",
+        "viewer_id": "v1",
+        "delta": 10,
+    }]
     await scheduler._tick()
-    assert broadcast_mock.called
+    # decay (-5~-1) + delta +10, should be higher than before
+    assert v.engagement > 50 or v.engagement == 50
 
 
 @pytest.mark.asyncio
-async def test_scheduler_speak_with_random_delay(scheduler, manager, generator):
-    manager.activate_viewer("xiaobing")
+async def test_agent_remove_viewer(scheduler, manager, agent):
+    manager.min_active = 0  # prevent backfill
+    add_viewer(manager, "v1", "小冰")
+    agent.decide.return_value = [{
+        "type": "remove_viewer",
+        "viewer_id": "v1",
+    }]
+    await scheduler._tick()
+    assert manager.get_viewer("v1") is None
+    assert len(manager.get_active_viewers()) == 0
+
+
+@pytest.mark.asyncio
+async def test_agent_speak_generates_danmaku(scheduler, manager, agent, generator, llm):
+    v = add_viewer(manager, "v1", "小冰")
+    agent.decide.return_value = [{
+        "type": "schedule_speak",
+        "viewer_id": "v1",
+        "intent": "夸主播操作",
+    }]
     await scheduler._tick()
     assert generator.build_prompt.called
+    assert llm.chat.called
+    assert v.interaction_count == 1
 
 
 @pytest.mark.asyncio
-async def test_decay_by_personality():
-    from backend.viewer.models import VirtualViewer
-    curious = VirtualViewer(viewer_id="a", name="a", persona="a", personality_type="curious", engagement=100)
-    bystander = VirtualViewer(viewer_id="b", name="b", persona="b", personality_type="bystander", engagement=100)
-    mgr = ViewerManager()
-    sched = ViewerScheduler(manager=mgr, llm=MagicMock(), selector=MagicMock(), generator=MagicMock())
-    for _ in range(20):
-        d1 = sched._compute_decay(curious)
-        d2 = sched._compute_decay(bystander)
-        assert d1 >= 0
-        assert d2 >= 0
+async def test_broadcast_system_on_enter(scheduler, manager, agent):
+    broadcast_mock = AsyncMock()
+    scheduler.broadcast_system = broadcast_mock
+    manager.min_active = 0  # prevent backfill
+    agent.decide.return_value = [{
+        "type": "spawn_viewer",
+        "name": "小华",
+        "persona": "热情观众",
+        "follows": True,
+        "relationship": "老粉",
+        "engagement": 85,
+    }]
+    await scheduler._tick()
+    assert broadcast_mock.called
+
+
+@pytest.mark.asyncio
+async def test_broadcast_system_on_leave(scheduler, manager, agent):
+    broadcast_mock = AsyncMock()
+    scheduler.broadcast_system = broadcast_mock
+    manager.min_active = 0  # prevent backfill
+    add_viewer(manager, "v1", "小冰")
+    agent.decide.return_value = [{
+        "type": "remove_viewer",
+        "viewer_id": "v1",
+    }]
+    await scheduler._tick()
+    assert broadcast_mock.called
 
 
 def test_compute_silence_duration():
-    manager = ViewerManager()
-    scheduler = ViewerScheduler(manager=manager, llm=MagicMock(), selector=MagicMock(), generator=MagicMock())
+    scheduler = ViewerScheduler(
+        manager=ViewerManager(),
+        agent=MagicMock(),
+        llm=MagicMock(),
+        generator=MagicMock(),
+    )
     scheduler.streamer_timeline = [{"text": "hello", "offset": 1000}]
     duration = scheduler._compute_silence_duration(2000)
     assert duration == 1000
 
 
-@pytest.mark.asyncio
-async def test_startup_fill_to_min():
-    """启动时 _try_entry 应填到 min_active (2)"""
-    manager = ViewerManager(max_active=4, min_active=2)
-    scheduler = ViewerScheduler(
-        manager=manager, llm=MagicMock(), selector=MagicMock(), generator=MagicMock(),
-    )
-    assert scheduler._startup_filled is False
-    await scheduler._try_entry()
-    assert len(manager.get_active_viewers()) >= manager.min_active
-    assert scheduler._startup_filled is True
-
-
-@pytest.mark.asyncio
-async def test_startup_fill_broadcasts_events():
-    """启动填充分每个观众广播 enter 事件"""
-    manager = ViewerManager(max_active=4, min_active=2)
-    broadcast_mock = AsyncMock()
-    scheduler = ViewerScheduler(
-        manager=manager, llm=MagicMock(), selector=MagicMock(), generator=MagicMock(),
-        broadcast_system=broadcast_mock,
-    )
-    await scheduler._try_entry()
-    assert broadcast_mock.call_count >= manager.min_active
-
-
 def test_pause_resume():
-    mgr = ViewerManager()
-    sched = ViewerScheduler(manager=mgr, llm=MagicMock(), selector=MagicMock(), generator=MagicMock())
-    assert sched._paused is True  # 默认暂停
+    sched = ViewerScheduler(
+        manager=ViewerManager(),
+        agent=MagicMock(),
+        llm=MagicMock(),
+        generator=MagicMock(),
+    )
+    assert sched._paused is True
     sched.resume()
     assert sched._paused is False
     sched.pause()
@@ -196,8 +183,15 @@ def test_pause_resume():
 
 
 @pytest.mark.asyncio
-async def test_paused_tick_does_nothing(scheduler, manager, selector):
-    manager.activate_viewer("xiaobing")
+async def test_paused_tick_does_nothing(scheduler, manager, agent):
+    add_viewer(manager, "v1", "小冰")
     scheduler.pause()
     await scheduler._tick()
-    assert not selector.build_pulse_prompt.called
+    assert not agent.decide.called
+
+
+@pytest.mark.asyncio
+async def test_backfill_below_min_active(scheduler, manager, agent):
+    agent.decide.return_value = []
+    await scheduler._tick()
+    assert len(manager.get_active_viewers()) >= manager.min_active

@@ -12,12 +12,13 @@ def test_build_prompt():
     prompt = g.build_prompt(
         name="小冰",
         persona="新来的好奇宝宝",
-        personality_type="curious",
         streamer_log=[{"text": "今天来玩一个新游戏", "offset": 12}],
         my_danmaku=[],
         other_danmaku=[],
         relationships={},
         current_asr="这游戏操作很简单新手五分钟上手",
+        follows=True,
+        relationship="老粉",
     )
     assert "小冰" in prompt
     assert "好奇宝宝" in prompt
@@ -30,13 +31,14 @@ def test_build_prompt_with_memory():
     prompt = g.build_prompt(
         name="老王",
         persona="毒舌吐槽型",
-        personality_type="aggressive",
         streamer_log=[{"text": "主播说这个游戏很难", "offset": 1}],
         my_danmaku=[{"text": "这就难了？", "offset": 2, "directed_to": "streamer"}],
         other_danmaku=[{"from_id": "小冰", "directed_to": "streamer",
                         "summary": "问了游戏难度"}],
         relationships={"小冰": "一起吐槽过"},
         current_asr="这个Boss我打了三次才过",
+        follows=False,
+        relationship="路人",
     )
     assert "老王" in prompt
     assert "这就难了" in prompt
@@ -66,4 +68,4 @@ def test_parse_danmaku_too_short():
 
 def test_default_model_name():
     g = Generator()
-    assert g.model_name == "gpt-4o-mini"
+    assert g.model_name == "moonshot-v1-8k"

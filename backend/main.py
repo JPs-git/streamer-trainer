@@ -47,8 +47,8 @@ from backend.config import config
 from backend.asr import ASREngine
 from backend.viewer.manager import ViewerManager
 from backend.viewer.scheduler import ViewerScheduler
+from backend.llm.agent import AgentClient
 from backend.llm.client import LLMClient
-from backend.llm.selector import Selector
 from backend.llm.generator import Generator
 
 
@@ -70,22 +70,26 @@ class StreamerTrainerApp:
             max_tokens=config.llm_max_tokens,
             timeout=config.llm_timeout,
         )
-        self.selector = Selector()
+        self.agent = AgentClient(
+            api_key=config.llm_api_key,
+            model=config.agent_model,
+            base_url=config.agent_base_url or config.llm_base_url,
+            temperature=config.agent_temperature,
+            timeout=config.agent_timeout,
+        )
         self.generator = Generator()
         self.viewer_manager = ViewerManager(
             max_active=config.viewer_max_active,
             min_active=config.viewer_min_active,
-            cooldown_sec=config.viewer_cooldown_sec,
         )
         self.streamer_timeline: list[dict] = []
         self.danmaku_clients: set[WebSocket] = set()
         self.scheduler = ViewerScheduler(
             manager=self.viewer_manager,
+            agent=self.agent,
             llm=self.llm,
-            selector=self.selector,
             generator=self.generator,
             tick_interval=config.viewer_tick_interval_sec,
-            entry_interval=config.viewer_entry_interval_sec,
             engagement_threshold=config.viewer_engagement_threshold,
             broadcast_system=self.broadcast_system,
             broadcast_danmaku=self.broadcast_danmaku,

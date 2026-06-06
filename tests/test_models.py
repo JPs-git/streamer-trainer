@@ -6,12 +6,16 @@ def test_viewer_creation():
         viewer_id="test_01",
         name="小冰",
         persona="新来的好奇宝宝",
-        personality_type="curious",
+        follows=True,
+        relationship="老粉",
     )
     assert v.viewer_id == "test_01"
     assert v.name == "小冰"
+    assert v.follows is True
+    assert v.relationship == "老粉"
     assert v.state == "inactive"
     assert v.interaction_count == 0
+    assert v.engagement == 100
 
 
 def test_memory_append_streamer_log():

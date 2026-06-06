@@ -11,16 +11,17 @@ def mock_llm_and_asr():
         mock_app.return_value = mock_instance
 
         mock_instance.llm = MagicMock()
-        mock_instance.llm.chat = AsyncMock(return_value='[]')
+        mock_instance.llm.chat = AsyncMock(return_value='你好')
 
         mock_instance.asr = MagicMock()
         mock_instance.asr.transcribe = MagicMock(return_value="主播说你好")
 
-        mock_instance.selector = MagicMock()
-        mock_instance.selector.build_pulse_prompt = MagicMock(return_value="prompt")
-        mock_instance.selector.parse_pulse_response = MagicMock(return_value=[])
+        mock_instance.agent = MagicMock()
+        mock_instance.agent.decide = AsyncMock(return_value=[])
 
         mock_instance.generator = MagicMock()
+        mock_instance.generator.build_prompt = MagicMock(return_value="prompt")
+        mock_instance.generator.parse_danmaku = MagicMock(return_value="你好呀")
 
         mock_instance.viewer_manager = MagicMock()
         mock_instance.viewer_manager.get_active_viewers = MagicMock(return_value=[])

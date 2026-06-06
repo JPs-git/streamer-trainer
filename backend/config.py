@@ -61,6 +61,12 @@ class Config:
             self.llm_temperature = llm_conf["temperature"]
             self.llm_max_tokens = llm_conf["max_tokens"]
 
+            agent_conf = raw.get("agent", {})
+            self.agent_model = agent_conf.get("model", "kimi-k2.6")
+            self.agent_base_url = agent_conf.get("base_url")
+            self.agent_timeout = agent_conf.get("timeout", 30.0)
+            self.agent_temperature = agent_conf.get("temperature", 0.8)
+
             viewer_conf = raw["viewer"]
             self.viewer_min_active = viewer_conf["min_active"]
             self.viewer_max_active = viewer_conf["max_active"]

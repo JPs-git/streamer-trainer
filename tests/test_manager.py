@@ -8,63 +8,60 @@ def manager():
     return ViewerManager(max_active=4, min_active=2)
 
 
-def test_get_viewer_by_id(manager):
-    v = manager.get_viewer("xiaobing")
-    assert v is not None
-    assert v.viewer_id == "xiaobing"
+@pytest.fixture
+def viewer():
+    return VirtualViewer(viewer_id="test_01", name="测试", persona="测试")
+
+
+def test_add_and_remove(manager, viewer):
+    manager.add_viewer(viewer)
+    assert manager.get_viewer("test_01") is viewer
+    manager.remove_viewer("test_01")
+    assert manager.get_viewer("test_01") is None
 
 
 def test_get_nonexistent_viewer(manager):
     assert manager.get_viewer("nonexistent") is None
 
 
-def test_viewer_state_transitions(manager):
-    manager.activate_viewer("xiaobing")
-    v = manager.get_viewer("xiaobing")
-    assert v.state == "active"
+def test_viewer_state_transitions(manager, viewer):
+    manager.add_viewer(viewer)
+    assert viewer.state == "inactive"
+    manager.activate_viewer(viewer.viewer_id)
+    assert viewer.state == "active"
+    manager.deactivate_viewer(viewer.viewer_id)
+    assert viewer.state == "cooldown"
 
-    manager.deactivate_viewer("xiaobing")
-    assert v.state == "cooldown"
 
-    manager.cooldown_sec = -1
-    manager.reset_cooldown_viewers()
-    assert v.state == "inactive"
-
-    manager.activate_viewer("xiaobing")
-    assert v.state == "active"
+def test_activate_viewer_requires_add(manager):
+    assert manager.activate_viewer("nonexistent") is False
 
 
 def test_active_viewers_respects_max(manager):
-    for vid in ["xiaobing", "xiaoxin", "mengmeng", "aqiang", "xiaohong",
-                 "tuzi", "laowang", "jingjing", "xiaohei", "dage"]:
-        manager.activate_viewer(vid)
+    for i in range(10):
+        v = VirtualViewer(viewer_id=f"v_{i}", name=f"观众{i}", persona="普通")
+        manager.add_viewer(v)
+        manager.activate_viewer(v.viewer_id)
     assert len(manager.get_active_viewers()) <= manager.max_active
 
 
-def test_cannot_reactivate_during_cooldown(manager):
-    manager.activate_viewer("xiaobing")
-    manager.deactivate_viewer("xiaobing")
-    v = manager.get_viewer("xiaobing")
-    assert v.state == "cooldown"
-    manager.activate_viewer("xiaobing")
-    assert v.state == "cooldown"
-
-
-def test_cooldown_expires_after_time(manager):
-    manager.cooldown_sec = -1
-    manager.activate_viewer("xiaobing")
-    manager.deactivate_viewer("xiaobing")
-    v = manager.get_viewer("xiaobing")
-    assert v.state == "cooldown"
-    manager.reset_cooldown_viewers()
-    assert v.state == "inactive"
-
-
 def test_activate_returns_bool(manager):
-    assert manager.activate_viewer("xiaobing") is True
+    v = VirtualViewer(viewer_id="t1", name="t1", persona="t")
+    manager.add_viewer(v)
+    assert manager.activate_viewer("t1") is True
     assert manager.activate_viewer("nonexistent") is False
 
 
 def test_get_inactive_viewers(manager):
+    v = VirtualViewer(viewer_id="t1", name="t1", persona="t")
+    manager.add_viewer(v)
     inactives = manager.get_inactive_viewers()
-    assert all(v.state == "inactive" for v in inactives)
+    assert v in inactives
+
+
+def test_remove_also_from_active(manager, viewer):
+    manager.add_viewer(viewer)
+    manager.activate_viewer(viewer.viewer_id)
+    assert len(manager.get_active_viewers()) == 1
+    manager.remove_viewer(viewer.viewer_id)
+    assert len(manager.get_active_viewers()) == 0

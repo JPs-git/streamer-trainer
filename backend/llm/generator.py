@@ -13,25 +13,27 @@ class Generator:
 - 如果是回应其他人，可以 @对方昵称
 - 简洁自然，像一个真实的直播间观众"""
 
-    def __init__(self, model_name: str = "gpt-4o-mini"):
+    def __init__(self, model_name: str = "moonshot-v1-8k"):
         self.model_name = model_name
 
     def build_prompt(
         self,
         name: str,
         persona: str,
-        personality_type: str,
         streamer_log: list[dict],
         my_danmaku: list[dict],
         other_danmaku: list[dict],
         relationships: dict[str, str],
         current_asr: str,
+        follows: bool = True,
+        relationship: str = "",
     ) -> str:
         lines = [
-            f"[角色档案]",
+            "[角色档案]",
             f"昵称: {name}",
             f"人设: {persona}",
-            f"类型: {personality_type}",
+            f"关注主播: {'是' if follows else '否'}",
+            f"与主播关系: {relationship or '普通观众'}",
             "",
             "[本场记忆 - 主播说过的话]",
         ]
