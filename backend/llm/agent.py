@@ -118,7 +118,7 @@ class AgentClient:
         try:
             resp = await self._client.chat.completions.create(
                 model=self.model,
-                temperature=1.0,  # kimi-k2.6 只允许 1
+                temperature=self.temperature,
                 max_tokens=1024,
                 messages=[
                     {"role": "system", "content": _SYSTEM_PROMPT},

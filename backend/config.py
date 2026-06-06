@@ -65,7 +65,7 @@ class Config:
             self.agent_model = agent_conf.get("model", "kimi-k2.6")
             self.agent_base_url = agent_conf.get("base_url")
             self.agent_timeout = agent_conf.get("timeout", 120.0)
-            self.agent_temperature = agent_conf.get("temperature", 1.0)
+            self.agent_temperature = agent_conf.get("temperature", 0.6)
 
             viewer_conf = raw["viewer"]
             self.viewer_min_active = viewer_conf["min_active"]

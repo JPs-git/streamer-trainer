@@ -23,8 +23,8 @@ agent:
   base_url: "https://api.moonshot.cn/v1"
   # kimi-k2.6 thinking mode 可能较慢
   timeout: 120.0
-  # kimi-k2.6 强制 temperature=1，不可调
-  temperature: 1.0
+  # kimi-k2.6 强制 temperature=0.6，不可调
+  temperature: 0.6
 
 viewer:
   min_active: 3
