@@ -11,34 +11,33 @@ def mock_llm_and_asr():
         mock_app.return_value = mock_instance
 
         mock_instance.llm = MagicMock()
-        mock_instance.llm.chat = AsyncMock(return_value='[{"id": "xiaobing", "intent": "test"}]')
+        mock_instance.llm.chat = AsyncMock(return_value='[]')
 
         mock_instance.asr = MagicMock()
         mock_instance.asr.transcribe = MagicMock(return_value="主播说你好")
 
         mock_instance.selector = MagicMock()
-        mock_instance.selector.build_prompt = MagicMock(return_value="prompt")
-        mock_instance.selector.parse_response = MagicMock(return_value=[{"id": "xiaobing", "intent": "test"}])
+        mock_instance.selector.build_pulse_prompt = MagicMock(return_value="prompt")
+        mock_instance.selector.parse_pulse_response = MagicMock(return_value=[])
 
         mock_instance.generator = MagicMock()
-        mock_instance.generator.build_prompt = MagicMock(return_value="prompt")
-        mock_instance.generator.parse_danmaku = MagicMock(return_value="大家好呀")
 
         mock_instance.viewer_manager = MagicMock()
         mock_instance.viewer_manager.get_active_viewers = MagicMock(return_value=[])
         mock_instance.viewer_manager.get_viewer = MagicMock(return_value=None)
 
         mock_instance.broadcast_danmaku = AsyncMock()
+        mock_instance.broadcast_system = AsyncMock()
         mock_instance.danmaku_clients = set()
+        mock_instance.scheduler = MagicMock()
+        mock_instance.streamer_timeline = []
 
         yield
-        # Reset lazy singleton so next test gets a fresh instance
         from backend.main import _LazyAppState
         _LazyAppState._instance = None
 
 
 def test_control_ping_pong():
-    """测试 /control WS 的 ping/pong 响应"""
     client = TestClient(app)
     with client.websocket_connect("/control") as ws:
         ws.send_json({"action": "ping"})
@@ -47,7 +46,15 @@ def test_control_ping_pong():
 
 
 def test_danmaku_endpoint_accepts_connection():
-    """测试 /danmaku WS 能正常连接"""
     client = TestClient(app)
     with client.websocket_connect("/danmaku") as ws:
         pass
+
+
+def test_debug_text_appends_to_timeline():
+    from backend.main import app_state
+    app_state.streamer_timeline = []
+    client = TestClient(app)
+    resp = client.post("/debug_text", json={"text": "hello"})
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}
