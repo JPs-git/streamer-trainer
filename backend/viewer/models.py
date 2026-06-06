@@ -39,3 +39,4 @@ class VirtualViewer:
     last_active: Optional[int] = None
     deactivated_at: Optional[int] = None
     interaction_count: int = 0
+    engagement: int = 100  # 0-100
