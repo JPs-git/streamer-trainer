@@ -54,6 +54,7 @@ class ViewerScheduler:
         self._last_entry_time: float = 0.0
         self._startup_filled = False
         self._running = False
+        self._paused = False
         logger.info(
             "Scheduler initialized: tick=%ss entry_interval=%ss threshold=%d",
             tick_interval, entry_interval, engagement_threshold,
@@ -70,7 +71,18 @@ class ViewerScheduler:
         self._running = False
         logger.info("Scheduler stopped")
 
+    def pause(self):
+        self._paused = True
+        logger.info("Scheduler paused")
+
+    def resume(self):
+        self._paused = False
+        logger.info("Scheduler resumed")
+
     async def _tick(self):
+        if self._paused:
+            return
+
         now = time.time()
         timeline_len = len(self.streamer_timeline)
         streamer_has_new_speech = self._last_speech_index < timeline_len

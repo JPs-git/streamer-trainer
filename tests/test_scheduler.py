@@ -182,3 +182,21 @@ async def test_startup_fill_broadcasts_events():
     )
     await scheduler._try_entry()
     assert broadcast_mock.call_count >= manager.min_active
+
+
+def test_pause_resume():
+    mgr = ViewerManager()
+    sched = ViewerScheduler(manager=mgr, llm=MagicMock(), selector=MagicMock(), generator=MagicMock())
+    assert sched._paused is False
+    sched.pause()
+    assert sched._paused is True
+    sched.resume()
+    assert sched._paused is False
+
+
+@pytest.mark.asyncio
+async def test_paused_tick_does_nothing(scheduler, manager, selector):
+    manager.activate_viewer("xiaobing")
+    scheduler.pause()
+    await scheduler._tick()
+    assert not selector.build_pulse_prompt.called

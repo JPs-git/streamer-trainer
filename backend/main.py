@@ -172,8 +172,25 @@ async def control_endpoint(ws: WebSocket):
         pass
 
 
+class ControlAction(BaseModel):
+    action: str
+
+
 class DebugText(BaseModel):
     text: str
+
+
+@app.post("/control/scheduler")
+async def control_scheduler_endpoint(body: ControlAction):
+    if body.action == "pause":
+        app_state.scheduler.pause()
+        logger.info("Scheduler paused via API")
+        return {"status": "ok", "paused": True}
+    elif body.action == "resume":
+        app_state.scheduler.resume()
+        logger.info("Scheduler resumed via API")
+        return {"status": "ok", "paused": False}
+    return {"status": "error", "message": f"unknown action: {body.action}"}
 
 
 @app.post("/debug_text")

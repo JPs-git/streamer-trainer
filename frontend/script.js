@@ -1,11 +1,14 @@
-const wsUrl = `ws://${location.host}/danmaku`;
+const API_BASE = location.origin;
+const WS_URL = `ws://${location.host}/danmaku`;
 let ws = null;
 let reconnectTimer = null;
+let reconnectDelay = 1000;
+const MAX_RECONNECT_DELAY = 30000;
 
 function connect() {
-  ws = new WebSocket(wsUrl);
+  ws = new WebSocket(WS_URL);
   ws.onopen = () => {
-    console.log('Connected');
+    reconnectDelay = 1000;
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
   };
   ws.onmessage = (e) => {
@@ -15,7 +18,8 @@ function connect() {
     } catch (err) { console.error(err); }
   };
   ws.onclose = () => {
-    reconnectTimer = setTimeout(connect, 3000);
+    reconnectTimer = setTimeout(connect, reconnectDelay);
+    reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
   };
 }
 
@@ -57,5 +61,31 @@ function handleMessage(data) {
     container.removeChild(container.firstChild);
   }
 }
+
+// --- Scheduler control ---
+
+let schedulerPaused = false;
+
+document.getElementById('btn-toggle-scheduler').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-toggle-scheduler');
+  const statusEl = document.getElementById('scheduler-status');
+  const action = schedulerPaused ? 'resume' : 'pause';
+  try {
+    const resp = await fetch(`${API_BASE}/control/scheduler`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action}),
+    });
+    const data = await resp.json();
+    if (data.status === 'ok') {
+      schedulerPaused = data.paused;
+      btn.textContent = schedulerPaused ? '▶ 开始' : '⏸ 暂停';
+      statusEl.textContent = schedulerPaused ? '● 已暂停' : '● 运行中';
+      statusEl.className = schedulerPaused ? 'status-paused' : 'status-running';
+    }
+  } catch (err) {
+    console.error('Scheduler control failed:', err);
+  }
+});
 
 connect();

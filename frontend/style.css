@@ -72,3 +72,29 @@ body {
 }
 
 #chat-messages::-webkit-scrollbar { width: 0; }
+
+#chat-footer {
+  display: flex;
+  justify-content: center;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.6);
+  flex-shrink: 0;
+}
+
+#btn-toggle-scheduler {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #e0e0e0;
+  padding: 4px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  width: 100%;
+}
+
+#btn-toggle-scheduler:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.status-running { color: #81C784; }
+.status-paused  { color: #FFB74D; }
