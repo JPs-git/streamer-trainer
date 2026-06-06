@@ -54,7 +54,7 @@ class ViewerScheduler:
         self._last_entry_time: float = 0.0
         self._startup_filled = False
         self._running = False
-        self._paused = False
+        self._paused = True  # 默认暂停，等待前端点击"开始"
         logger.info(
             "Scheduler initialized: tick=%ss entry_interval=%ss threshold=%d",
             tick_interval, entry_interval, engagement_threshold,
@@ -62,7 +62,7 @@ class ViewerScheduler:
 
     async def start(self):
         self._running = True
-        logger.info("Scheduler started")
+        logger.info("Scheduler loop started (paused=%s)", self._paused)
         while self._running:
             await self._tick()
             await asyncio.sleep(self.tick_interval)
@@ -174,7 +174,11 @@ class ViewerScheduler:
         if not self.streamer_timeline:
             return 0.0
         last = self.streamer_timeline[-1]
-        return now - last["offset"]
+        offset = last.get("offset", 0)
+        if not isinstance(offset, (int, float)):
+            logger.error("Bad timeline entry: %s (offset=%r)", last, offset)
+            return 0.0
+        return now - offset
 
     def _build_viewer_states(self, active, has_new: bool, silence: float) -> list[dict]:
         return [

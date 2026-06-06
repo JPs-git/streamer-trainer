@@ -64,7 +64,7 @@ function handleMessage(data) {
 
 // --- Scheduler control ---
 
-let schedulerPaused = false;
+let schedulerPaused = true;  // 调度器默认暂停
 
 document.getElementById('btn-toggle-scheduler').addEventListener('click', async () => {
   const btn = document.getElementById('btn-toggle-scheduler');

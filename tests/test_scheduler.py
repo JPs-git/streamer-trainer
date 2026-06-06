@@ -47,6 +47,7 @@ def scheduler(manager, llm, selector, generator):
         engagement_threshold=20,
     )
     s._startup_filled = True  # tests manually activate viewers
+    s._paused = False  # tests expect running scheduler
     return s
 
 
@@ -187,11 +188,11 @@ async def test_startup_fill_broadcasts_events():
 def test_pause_resume():
     mgr = ViewerManager()
     sched = ViewerScheduler(manager=mgr, llm=MagicMock(), selector=MagicMock(), generator=MagicMock())
+    assert sched._paused is True  # 默认暂停
+    sched.resume()
     assert sched._paused is False
     sched.pause()
     assert sched._paused is True
-    sched.resume()
-    assert sched._paused is False
 
 
 @pytest.mark.asyncio
