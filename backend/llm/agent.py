@@ -94,7 +94,11 @@ class AgentClient:
         timeout: float = 30.0,
     ):
         from openai import AsyncOpenAI
-        kwargs: dict[str, Any] = {"api_key": api_key, "timeout": timeout}
+        kwargs: dict[str, Any] = {
+            "api_key": api_key,
+            "timeout": timeout,
+            "max_retries": 0,  # scheduler handles retries
+        }
         if base_url:
             kwargs["base_url"] = base_url
         self._client = AsyncOpenAI(**kwargs)
@@ -122,6 +126,7 @@ class AgentClient:
                 ],
                 tools=TOOLS,
                 tool_choice="auto",
+                extra_body={"thinking": {"type": "disabled"}},  # 关闭 thinking 提速
             )
         except Exception as e:
             logger.error("Agent API call failed: %s", e)

@@ -21,7 +21,8 @@ llm:
 agent:
   model: "kimi-k2.6"
   base_url: "https://api.moonshot.cn/v1"
-  timeout: 30.0
+  # kimi-k2.6 thinking mode 可能较慢
+  timeout: 120.0
   # kimi-k2.6 强制 temperature=1，不可调
   temperature: 1.0
 
