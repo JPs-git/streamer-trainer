@@ -37,7 +37,7 @@ def generator():
 
 @pytest.fixture
 def scheduler(manager, llm, selector, generator):
-    return ViewerScheduler(
+    s = ViewerScheduler(
         manager=manager,
         llm=llm,
         selector=selector,
@@ -46,6 +46,8 @@ def scheduler(manager, llm, selector, generator):
         entry_interval=0.1,
         engagement_threshold=20,
     )
+    s._startup_filled = True  # tests manually activate viewers
+    return s
 
 
 @pytest.mark.asyncio
@@ -153,3 +155,29 @@ def test_compute_silence_duration():
     scheduler.streamer_timeline = [{"text": "hello", "offset": 1000}]
     duration = scheduler._compute_silence_duration(2000)
     assert duration == 1000
+
+
+@pytest.mark.asyncio
+async def test_startup_fill_to_min():
+    """启动时 _try_entry 应填到 min_active (2)"""
+    manager = ViewerManager(max_active=4, min_active=2)
+    scheduler = ViewerScheduler(
+        manager=manager, llm=MagicMock(), selector=MagicMock(), generator=MagicMock(),
+    )
+    assert scheduler._startup_filled is False
+    await scheduler._try_entry()
+    assert len(manager.get_active_viewers()) >= manager.min_active
+    assert scheduler._startup_filled is True
+
+
+@pytest.mark.asyncio
+async def test_startup_fill_broadcasts_events():
+    """启动填充分每个观众广播 enter 事件"""
+    manager = ViewerManager(max_active=4, min_active=2)
+    broadcast_mock = AsyncMock()
+    scheduler = ViewerScheduler(
+        manager=manager, llm=MagicMock(), selector=MagicMock(), generator=MagicMock(),
+        broadcast_system=broadcast_mock,
+    )
+    await scheduler._try_entry()
+    assert broadcast_mock.call_count >= manager.min_active

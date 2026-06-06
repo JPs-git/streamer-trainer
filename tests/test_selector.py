@@ -42,3 +42,22 @@ def test_build_pulse_prompt_with_silence():
     ])
     assert "沉默时长" in prompt
     assert "120 秒" in prompt
+
+
+def test_build_pulse_prompt_includes_last_danmaku():
+    sel = Selector()
+    prompt = sel.build_pulse_prompt("继续", 0, [
+        {"id": "x", "name": "X", "personality": "curious", "engagement": 80,
+         "interaction_count": 3, "last_danmaku": "这游戏怎么玩"},
+    ])
+    assert "上次说" in prompt
+    assert "这游戏怎么玩" in prompt
+
+
+def test_build_pulse_prompt_no_last_danmaku():
+    sel = Selector()
+    prompt = sel.build_pulse_prompt("继续", 0, [
+        {"id": "x", "name": "X", "personality": "curious", "engagement": 80,
+         "interaction_count": 0},
+    ])
+    assert "上次说" not in prompt

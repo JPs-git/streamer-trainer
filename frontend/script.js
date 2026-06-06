@@ -19,8 +19,11 @@ function connect() {
   };
 }
 
+let viewerCount = 0;
+
 function handleMessage(data) {
   const container = document.getElementById('chat-messages');
+  const countEl = document.getElementById('viewer-count');
   const div = document.createElement('div');
 
   if (data.type === 'danmaku') {
@@ -36,10 +39,13 @@ function handleMessage(data) {
   } else if (data.type === 'system') {
     div.className = `msg system ${data.action}`;
     if (data.action === 'enter') {
+      viewerCount++;
       div.textContent = `🟢 ${data.name} 进入了直播间`;
     } else if (data.action === 'leave') {
+      viewerCount = Math.max(0, viewerCount - 1);
       div.textContent = `🔴 ${data.name} 离开了直播间`;
     }
+    countEl.textContent = `${viewerCount}人在线`;
   }
 
   if (div.textContent || div.childNodes.length) {

@@ -1,10 +1,13 @@
 from __future__ import annotations
 import asyncio
+import logging
 import random
 import time
 from typing import TYPE_CHECKING, Callable, Optional
 
 from backend.viewer.manager import ViewerManager
+
+logger = logging.getLogger("scheduler")
 
 if TYPE_CHECKING:
     from backend.llm.client import LLMClient
@@ -49,45 +52,69 @@ class ViewerScheduler:
         self.streamer_timeline = streamer_timeline if streamer_timeline is not None else []
         self._last_speech_index = 0
         self._last_entry_time: float = 0.0
+        self._startup_filled = False
         self._running = False
+        logger.info(
+            "Scheduler initialized: tick=%ss entry_interval=%ss threshold=%d",
+            tick_interval, entry_interval, engagement_threshold,
+        )
 
     async def start(self):
         self._running = True
+        logger.info("Scheduler started")
         while self._running:
             await self._tick()
             await asyncio.sleep(self.tick_interval)
 
     def stop(self):
         self._running = False
+        logger.info("Scheduler stopped")
 
     async def _tick(self):
         now = time.time()
-        streamer_has_new_speech = self._last_speech_index < len(self.streamer_timeline)
+        timeline_len = len(self.streamer_timeline)
+        streamer_has_new_speech = self._last_speech_index < timeline_len
         silence_duration = self._compute_silence_duration(now)
 
         active = self.manager.get_active_viewers()
+        logger.debug(
+            "Tick: active=%d timeline=%d has_new=%s silence=%.0fs",
+            len(active), timeline_len, streamer_has_new_speech, silence_duration,
+        )
+
         if not active:
             await self._try_entry()
             return
 
         # 1. 基础衰减 + 随机波动
         for v in active:
+            before = v.engagement
             decay = self._compute_decay(v)
             v.engagement = max(ENGAGEMENT_MIN, min(ENGAGEMENT_MAX, v.engagement - decay))
+            logger.debug("  Decay %s: %d -> %d (decay=%.1f)", v.name, before, v.engagement, decay)
 
         # 2. LLM 批量评估
         viewer_states = self._build_viewer_states(active, streamer_has_new_speech, silence_duration)
         selector_result = await self._call_selector(active, streamer_has_new_speech, silence_duration)
 
         if selector_result is None:
+            logger.warning("  Selector returned None, skipping tick")
             await self._try_entry()
             return
+
+        logger.info("  Selector result: %d items", len(selector_result))
+        for item in selector_result:
+            logger.debug("    %s: delta=%+d speak=%s leave=%s",
+                         item.get("id", "?"), item.get("engagement_delta", 0),
+                         item.get("speak"), item.get("leave"))
 
         # 3. 应用 engagement 修正
         for item in selector_result:
             v = self.manager.get_viewer(item.get("id", ""))
             if v and v.state == "active":
                 delta = item.get("engagement_delta", 0)
+                if delta != 0:
+                    logger.debug("  Engagement fix %s: %d %+d -> %d", v.name, v.engagement, delta, v.engagement + delta)
                 v.engagement = max(ENGAGEMENT_MIN, min(ENGAGEMENT_MAX, v.engagement + delta))
 
         # 4. 处理发言
@@ -97,6 +124,7 @@ class ViewerScheduler:
                 v = self.manager.get_viewer(item.get("id", ""))
                 if v and v.state == "active":
                     delay = random.uniform(0, 6)
+                    logger.info("  Speak scheduled: %s intent=%s delay=%.1fs", v.name, item["speak"], delay)
                     speak_tasks.append(self._schedule_speak(v, item["speak"], delay))
 
         if speak_tasks:
@@ -109,15 +137,21 @@ class ViewerScheduler:
                 if len(self.manager.get_active_viewers()) > self.manager.min_active:
                     v = self.manager.get_viewer(vid)
                     if v and v.state == "active":
+                        logger.info("  Leave: %s (engagement=%d)", v.name, v.engagement)
                         self.manager.deactivate_viewer(vid)
                         if self.broadcast_system:
                             await self.broadcast_system("leave", v.name, v.viewer_id)
+                else:
+                    logger.info("  Leave blocked for %s: at min_active (%d)", vid, self.manager.min_active)
 
         # 6. 入场
         await self._try_entry()
 
         # 7. 冷却重置
         self.manager.reset_cooldown_viewers()
+
+        # 8. 更新已处理的发言索引
+        self._last_speech_index = timeline_len
 
     def _compute_decay(self, v) -> float:
         base = PERSONALITY_DECAY_BASE.get(v.personality_type, 3.0)
@@ -138,6 +172,7 @@ class ViewerScheduler:
                 "personality": v.personality_type,
                 "engagement": v.engagement,
                 "interaction_count": v.interaction_count,
+                "last_danmaku": v.memory.my_danmaku[-1]["text"][:40] if v.memory.my_danmaku else None,
             }
             for v in active
         ]
@@ -148,11 +183,14 @@ class ViewerScheduler:
             latest_speech = self.streamer_timeline[-1].get("text", "")
         viewer_states = self._build_viewer_states(active, has_new, silence)
         prompt = self.selector.build_pulse_prompt(latest_speech, silence, viewer_states)
+        logger.debug("  Selector prompt (%d chars): latest=%r silence=%.0fs",
+                     len(prompt), latest_speech[:50], silence)
         raw = await self.llm.chat(
             system=self.selector.SELECTOR_SYSTEM_PROMPT,
             user=prompt,
             model=self.llm.selector_model,
         )
+        logger.debug("  Selector raw response: %s", raw[:200] if raw else "None")
         return self.selector.parse_pulse_response(raw)
 
     async def _schedule_speak(self, v, intent: str, delay: float):
@@ -176,6 +214,7 @@ class ViewerScheduler:
         )
         text = self.generator.parse_danmaku(raw)
         if not text:
+            logger.warning("  Generator returned empty for %s, skipping", v.name)
             return
         v.memory.add_my_danmaku(text, int(time.time()), "streamer")
         v.last_active = int(time.time())
@@ -189,19 +228,51 @@ class ViewerScheduler:
             "personality": v.personality_type,
             "effect": effect,
         }
+        logger.info("  Danmaku: %s: %s", v.name, text)
+        # 广播到所有人的 other_danmaku，供后续引用
+        for other in self.manager.get_active_viewers():
+            if other.viewer_id != v.viewer_id:
+                other.memory.add_other_danmaku(v.viewer_id, "streamer", text[:40])
         if self.broadcast_danmaku:
             await self.broadcast_danmaku(msg)
 
     async def _try_entry(self):
+        # 启动阶段：一次性填到 min_active
+        if not self._startup_filled:
+            self._startup_filled = True
+            await self._fill_to_min()
+            return
+        # 正常阶段：按 entry_interval 每次进一个
         if time.time() - self._last_entry_time < self.entry_interval:
             return
+        await self._enter_one()
+
+    async def _fill_to_min(self):
+        count = 0
+        while len(self.manager.get_active_viewers()) < self.manager.min_active:
+            inactive = self.manager.get_inactive_viewers()
+            if not inactive or len(self.manager.get_active_viewers()) >= self.manager.max_active:
+                break
+            v = random.choice(inactive)
+            self.manager.activate_viewer(v.viewer_id)
+            logger.info("  Startup enter: %s (%s, engagement=%d)", v.name, v.personality_type, v.engagement)
+            if self.broadcast_system:
+                await self.broadcast_system("enter", v.name, v.viewer_id)
+            count += 1
+        self._last_entry_time = time.time()
+        logger.info("Startup fill complete: %d viewers entered, %d active", count, len(self.manager.get_active_viewers()))
+
+    async def _enter_one(self):
         inactive = self.manager.get_inactive_viewers()
         if not inactive:
+            logger.debug("  Entry skipped: no inactive viewers")
             return
         if len(self.manager.get_active_viewers()) >= self.manager.max_active:
+            logger.debug("  Entry skipped: at max_active")
             return
         v = random.choice(inactive)
         self.manager.activate_viewer(v.viewer_id)
         self._last_entry_time = time.time()
+        logger.info("  Enter: %s (%s, engagement=%d)", v.name, v.personality_type, v.engagement)
         if self.broadcast_system:
             await self.broadcast_system("enter", v.name, v.viewer_id)

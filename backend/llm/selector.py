@@ -40,10 +40,12 @@ class Selector:
         lines.append("")
         lines.append("[活跃观众当前状态]")
         for vs in viewer_states:
+            last = vs.get("last_danmaku")
+            last_str = f", 上次说: {last}" if last else ""
             lines.append(
                 f"- {vs['name']}({vs['id']}) [{vs['personality']}] "
                 f"engagement={vs.get('engagement', 100)}, "
-                f"发过{vs.get('interaction_count', 0)}条弹幕"
+                f"发过{vs.get('interaction_count', 0)}条弹幕{last_str}"
             )
         lines.extend([
             "",
