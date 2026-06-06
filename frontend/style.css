@@ -60,6 +60,7 @@ body {
 
 .text { color: #e0e0e0; }
 
+.msg.streamer { color: #FFD54F; font-size: 13px; font-weight: 500; margin-bottom: 8px; }
 .msg.system { color: #888; font-size: 12px; text-align: center; }
 .msg.system.enter { color: #81C784; }
 .msg.system.leave { color: #FF8A65; }
@@ -75,10 +76,55 @@ body {
 
 #chat-footer {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  gap: 4px;
   padding: 6px 12px;
   background: rgba(0, 0, 0, 0.6);
   flex-shrink: 0;
+}
+
+#input-row {
+  display: flex;
+  gap: 6px;
+}
+
+#anchor-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #e0e0e0;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+}
+
+#anchor-input:focus {
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+#anchor-input::placeholder {
+  color: #777;
+}
+
+#btn-send {
+  background: rgba(129, 199, 132, 0.25);
+  border: 1px solid rgba(129, 199, 132, 0.35);
+  color: #81C784;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+#btn-send:hover {
+  background: rgba(129, 199, 132, 0.35);
+}
+
+#btn-send:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 #btn-toggle-scheduler {

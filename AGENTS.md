@@ -10,7 +10,7 @@ uv sync --group dev            # 安装依赖（含 dev）
 uv run pytest tests/           # 运行所有测试
 uv run python scripts/download_models.py  # 预下载 Whisper 模型（可选）
 uv run python -m backend.main  # 启动服务 → http://localhost:8765
-uv run python scripts/debug_client.py    # 另一个终端，调试用
+# 在前端底部输入框输入主播台词后发送
 ```
 
 ## 架构概要

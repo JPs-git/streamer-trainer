@@ -208,11 +208,16 @@ async def control_scheduler_endpoint(body: ControlAction):
 
 @app.post("/debug_text")
 async def debug_text_endpoint(body: DebugText):
-    """调试入口：传入文本追加到主播时间线。"""
+    """调试入口：传入文本追加到主播时间线，并广播到直播间。"""
     try:
         timestamp = int(time.time())
         app_state.streamer_timeline.append({"text": body.text, "offset": timestamp})
         logger.info("Timeline: + '%s' (total %d entries)", body.text, len(app_state.streamer_timeline))
+        await app_state.broadcast_danmaku({
+            "type": "streamer",
+            "text": body.text,
+            "timestamp": timestamp,
+        })
         return {"status": "ok"}
     except Exception as e:
         import traceback

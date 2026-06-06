@@ -39,6 +39,9 @@ function handleMessage(data) {
     textSpan.textContent = data.text;
     div.appendChild(nameSpan);
     div.appendChild(textSpan);
+  } else if (data.type === 'streamer') {
+    div.className = 'msg streamer';
+    div.textContent = `🎤 主播: ${data.text}`;
   } else if (data.type === 'system') {
     div.className = `msg system ${data.action}`;
     if (data.action === 'enter') {
@@ -90,6 +93,39 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       console.error('Scheduler control failed:', err);
     }
+  });
+
+  // --- Anchor text input ---
+
+  const input = document.getElementById('anchor-input');
+  const sendBtn = document.getElementById('btn-send');
+
+  async function sendAnchorText() {
+    const text = input.value.trim();
+    if (!text) return;
+    sendBtn.disabled = true;
+    try {
+      const resp = await fetch('/debug_text', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({text}),
+      });
+      const data = await resp.json();
+      if (data.status !== 'ok') {
+        console.error('Send failed:', data.message);
+      }
+    } catch (err) {
+      console.error('Send failed:', err);
+    } finally {
+      sendBtn.disabled = false;
+      input.value = '';
+      input.focus();
+    }
+  }
+
+  sendBtn.addEventListener('click', sendAnchorText);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendAnchorText();
   });
 });
 

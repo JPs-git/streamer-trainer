@@ -37,6 +37,7 @@ for i in $(seq 1 30); do
     sleep 1
 done
 
-echo "🖥️  启动调试客户端..."
+echo "💡 打开浏览器访问 http://localhost:8765/"
+echo "   在页面底部输入框输入主播台词后发送即可触发弹幕生成"
 echo ""
-uv run python scripts/debug_client.py
+wait $BACKEND_PID
