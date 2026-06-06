@@ -111,17 +111,26 @@ class AgentClient:
         user_prompt = self._build_user_prompt(viewer_states, timeline_text, silence_sec, room_stats)
         logger.debug("Agent prompt:\n%s", user_prompt)
 
-        resp = await self._client.chat.completions.create(
-            model=self.model,
-            temperature=self.temperature,
-            max_tokens=1024,
-            messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            tools=TOOLS,
-            tool_choice="auto",
-        )
+        try:
+            resp = await self._client.chat.completions.create(
+                model=self.model,
+                temperature=self.temperature,
+                max_tokens=1024,
+                messages=[
+                    {"role": "system", "content": _SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt},
+                ],
+                tools=TOOLS,
+                tool_choice="auto",
+            )
+        except Exception as e:
+            logger.error("Agent API call failed: %s", e)
+            body = getattr(e, "body", None) or getattr(e, "response", None)
+            if isinstance(body, dict):
+                logger.error("API error detail: %s", body)
+            elif body is not None:
+                logger.error("API error response: %s", str(body)[:500])
+            return []
 
         msg = resp.choices[0].message
         if not msg.tool_calls:

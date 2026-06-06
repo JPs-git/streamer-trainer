@@ -50,7 +50,10 @@ class ViewerScheduler:
         self._running = True
         logger.info("Scheduler loop started (paused=%s)", self._paused)
         while self._running:
-            await self._tick()
+            try:
+                await self._tick()
+            except Exception as e:
+                logger.error("Tick crashed: %s", e, exc_info=True)
             await asyncio.sleep(self.tick_interval)
 
     def stop(self):
@@ -102,7 +105,11 @@ class ViewerScheduler:
             "min_active": self.manager.min_active,
         }
 
-        actions = await self.agent.decide(viewer_states, latest_text, silence_duration, room_stats)
+        actions: list[dict] = []
+        try:
+            actions = await self.agent.decide(viewer_states, latest_text, silence_duration, room_stats)
+        except Exception as e:
+            logger.error("Agent.decide failed: %s", e)
 
         # 3. Execute actions (speak tasks collected for parallel generation)
         speak_tasks: list[asyncio.Task] = []
@@ -125,7 +132,7 @@ class ViewerScheduler:
         if speak_tasks:
             await asyncio.gather(*speak_tasks)
 
-        # 4. Startup fill: if still below min_active, backfill
+        # 4. Backfill: if below min_active, add simple viewers
         if len(self.manager.get_active_viewers()) < self.manager.min_active:
             logger.debug("  Below min_active after tick, backfilling...")
             await self._backfill_to_min()
