@@ -2,6 +2,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import sys
 import time
 from contextlib import asynccontextmanager
 from typing import Optional
@@ -12,23 +13,35 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from pathlib import Path
 
+# ── 防双加载 ──────────────────────────────────────────
+# python -m backend.main 将模块注册为 __main__ 而非 backend.main，
+# 后续 uvicorn.run("backend.main:app") 会重新导入导致所有模块级
+# 代码执行两次（日志 handler 重复、FastAPI 重复、单例失效）。
+_own_key = "backend.main"
+if __name__ == "__main__" and _own_key not in sys.modules:
+    sys.modules[_own_key] = sys.modules["__main__"]
+
+# ── 日志 ─────────────────────────────────────────────
 _LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
 _LOG_DIR.mkdir(exist_ok=True)
 
 _fmt = logging.Formatter("%(asctime)s [%(name)s] %(levelname)s %(message)s", datefmt="%H:%M:%S")
 
-_console = logging.StreamHandler()
-_console.setLevel(logging.INFO)
-_console.setFormatter(_fmt)
-
-_file = logging.FileHandler(str(_LOG_DIR / "app.log"), mode="a", encoding="utf-8")
-_file.setLevel(logging.DEBUG)
-_file.setFormatter(_fmt)
-
 root = logging.getLogger()
+# 幂等：只添加一次，避免双加载后翻倍
+if not any(isinstance(h, logging.StreamHandler) and h.formatter._fmt == _fmt._fmt for h in root.handlers):
+    _console = logging.StreamHandler()
+    _console.setLevel(logging.INFO)
+    _console.setFormatter(_fmt)
+    root.addHandler(_console)
+
+if not any(isinstance(h, logging.FileHandler) and h.baseFilename.endswith("app.log") for h in root.handlers):
+    _file = logging.FileHandler(str(_LOG_DIR / "app.log"), mode="a", encoding="utf-8")
+    _file.setLevel(logging.DEBUG)
+    _file.setFormatter(_fmt)
+    root.addHandler(_file)
+
 root.setLevel(logging.DEBUG)
-root.addHandler(_console)
-root.addHandler(_file)
 
 from backend.config import config
 from backend.asr import ASREngine
