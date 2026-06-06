@@ -3,39 +3,55 @@ import re
 
 
 class Selector:
-    SELECTOR_SYSTEM_PROMPT = """你是一个直播弹幕选角导演。你的职责是：
-1. 根据主播当前说的话，从活跃观众中选择2-3位最应该发言的人
-2. 简要说明每个人应该说什么方向
-3. 返回 JSON 数组
+    SELECTOR_SYSTEM_PROMPT = """你是一个直播弹幕的"观众脉搏"评估系统。
+你的任务是根据主播的直播内容（或沉默状态）和每个观众的个性，
+评估每个活跃观众当前的状态。
 
-输出格式 JSON:
-[{"id": "角色ID", "intent": "一句话说明发言意图"}]
+输出 JSON 数组，每个元素包含：
+{
+  "id": "观众ID",
+  "engagement_delta": 整数,   // 兴趣变化：对口 +5~+20, 无聊 -5~-15, 中性 0~-3
+  "speak": null 或 "发言意图描述",  // 非空表示该观众想发言
+  "leave": true/false           // true 表示想离场
+}
 
-重要规则：
-- 优先选择状态与当前话题最相关的观众
-- 压力型观众在主播犯错或说大话时优先选择
-- 引导型观众在新话题开始时优先选择
-- 不要让同一个观众连续两次发言
-- 如果没有人适合发言，返回空数组 []"""
+规则：
+- engagement_delta 根据内容是否符合该观众的口味决定
+- 沉默太久会导致多个观众 engagement 下降
+- 只有 engagement <= 20 的观众才可能 leave=true
+- speak 优先给 engagement 变化最大的 1-2 人
+- 不要让同一个人连续多次发言
+- 如果所有人都沉默，返回空数组 []"""
 
     def __init__(self, model_name: str = "gpt-4o-mini"):
         self.model_name = model_name
 
-    def build_prompt(self, asr_text: str, viewer_states: list[dict]) -> str:
-        lines = ["当前主播说: " + asr_text, "", "活跃观众状态:"]
+    def build_pulse_prompt(
+        self,
+        latest_speech: str,
+        silence_duration: float,
+        viewer_states: list[dict],
+    ) -> str:
+        lines = []
+        if latest_speech:
+            lines.append(f"[主播最新发言] {latest_speech}")
+        else:
+            lines.append(f"[沉默时长] {silence_duration:.0f} 秒")
+        lines.append("")
+        lines.append("[活跃观众当前状态]")
         for vs in viewer_states:
             lines.append(
-                f"- {vs['name']}({vs['id']}) "
-                f"[{vs['personality']}] {vs.get('summary', '')}"
+                f"- {vs['name']}({vs['id']}) [{vs['personality']}] "
+                f"engagement={vs.get('engagement', 100)}, "
+                f"发过{vs.get('interaction_count', 0)}条弹幕"
             )
         lines.extend([
             "",
-            "请选择2-3位最合适的观众发言，返回JSON数组。"
-            "不需要发言时返回 []。",
+            "评估每个观众的状态变化，返回 JSON 数组。",
         ])
         return "\n".join(lines)
 
-    def parse_response(self, text: str) -> list[dict]:
+    def parse_pulse_response(self, text: str) -> list[dict]:
         json_match = re.search(r'\[.*?\]', text, re.DOTALL)
         if not json_match:
             return []
