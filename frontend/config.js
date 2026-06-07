@@ -1,5 +1,10 @@
 const CONFIG_API = '/api/config';
 
+if (sessionStorage.getItem('config_saved')) {
+  sessionStorage.removeItem('config_saved');
+  console.log('[配置] 配置已更新，服务已重启，新配置已生效');
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   const statusEl = document.getElementById('config-status');
   const btnSave = document.getElementById('btn-save-config');
@@ -26,6 +31,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('viewer-cooldown').value = data.viewer.cooldown_sec;
       document.getElementById('viewer-tick-interval').value = data.viewer.tick_interval_sec;
       document.getElementById('viewer-engagement').value = data.viewer.engagement_threshold;
+      console.log('[配置] 当前配置:', JSON.parse(JSON.stringify(data)));
     } catch (err) {
       showStatus('加载配置失败: ' + err.message, 'error');
     }
@@ -57,6 +63,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const result = await resp.json();
       if (result.status === 'ok') {
         showStatus('保存成功，服务即将重启...', 'success');
+        sessionStorage.setItem('config_saved', 'true');
         setTimeout(() => {
           showStatus('服务重启中，请稍候...', '');
           location.reload();
@@ -80,6 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const result = await resp.json();
       if (result.status === 'ok') {
         showStatus('已恢复默认，服务即将重启...', 'success');
+        sessionStorage.setItem('config_saved', 'true');
         setTimeout(() => {
           showStatus('服务重启中，请稍候...', '');
           location.reload();
