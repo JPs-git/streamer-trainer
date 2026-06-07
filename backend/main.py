@@ -374,5 +374,6 @@ if __name__ == "__main__":
         "backend.main:app",
         host=config.host,
         port=config.port,
-        reload=False,
+        reload=True,
+        reload_includes=["config.yaml"],
     )
