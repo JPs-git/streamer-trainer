@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import logging
+import time
 from typing import Any, Optional
 
 logger = logging.getLogger("agent")
@@ -112,23 +113,33 @@ class AgentClient:
         timeline_text: str,
         silence_sec: float,
         room_stats: dict,
+        thinking: bool = False,
     ) -> list[dict[str, Any]]:
         user_prompt = self._build_user_prompt(viewer_states, timeline_text, silence_sec, room_stats)
         logger.debug("Agent prompt:\n%s", user_prompt)
 
+        kwargs: dict[str, Any] = {
+            "model": self.model,
+            "temperature": self.temperature,
+            "max_tokens": 1024,
+            "messages": [
+                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            "tools": TOOLS,
+            "tool_choice": "auto",
+        }
+        if not thinking:
+            kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
         try:
-            resp = await self._client.chat.completions.create(
-                model=self.model,
-                temperature=self.temperature,
-                max_tokens=1024,
-                messages=[
-                    {"role": "system", "content": _SYSTEM_PROMPT},
-                    {"role": "user", "content": user_prompt},
-                ],
-                tools=TOOLS,
-                tool_choice="auto",
-                extra_body={"thinking": {"type": "disabled"}},  # 关闭 thinking 提速
-            )
+            t0 = time.monotonic()
+            resp = await self._client.chat.completions.create(**kwargs)
+            t1 = time.monotonic()
+            if t1 - t0 > 3.0:
+                logger.warning(
+                    "Agent API slow: viewer_count=%d, elapsed=%.1fs",
+                    len(viewer_states), t1 - t0,
+                )
         except Exception as e:
             logger.error("Agent API call failed: %s", e)
             body = getattr(e, "body", None) or getattr(e, "response", None)
