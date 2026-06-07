@@ -2,15 +2,17 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import shutil
 import sys
 import time
 from contextlib import asynccontextmanager
 from typing import Optional
 
 import uvicorn
+import yaml
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pathlib import Path
 
 # ── 防双加载 ──────────────────────────────────────────
@@ -167,6 +169,101 @@ app_state: StreamerTrainerApp = _LazyAppState()
 app = FastAPI(lifespan=lifespan)
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+
+CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
+CONFIG_DEFAULT_PATH = Path(__file__).resolve().parent.parent / "config.default.yaml"
+
+
+def _read_config_yaml() -> dict:
+    with open(CONFIG_PATH) as f:
+        return yaml.safe_load(f) or {}
+
+
+def _write_config_yaml(data: dict):
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+        yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+
+class LLMConfigModel(BaseModel):
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None
+
+
+class ViewerConfigModel(BaseModel):
+    min_active: Optional[int] = Field(default=None, ge=0, le=100)
+    max_active: Optional[int] = Field(default=None, ge=1, le=200)
+    entry_interval_sec: Optional[int] = Field(default=None, ge=5, le=3600)
+    cooldown_sec: Optional[int] = Field(default=None, ge=5, le=86400)
+    tick_interval_sec: Optional[int] = Field(default=None, ge=1, le=300)
+    engagement_threshold: Optional[int] = Field(default=None, ge=1, le=1000)
+
+
+class ConfigUpdate(BaseModel):
+    llm: Optional[LLMConfigModel] = None
+    viewer: Optional[ViewerConfigModel] = None
+
+
+@app.get("/api/config")
+async def get_config():
+    raw = _read_config_yaml()
+    llm = raw.get("llm", {})
+    viewer = raw.get("viewer", {})
+
+    api_key = llm.get("api_key", "")
+    if api_key and len(api_key) > 8:
+        masked = api_key[:4] + "****" + api_key[-4:]
+    elif api_key:
+        masked = "****"
+    else:
+        masked = ""
+
+    return {
+        "llm": {
+            "base_url": llm.get("base_url", ""),
+            "api_key": masked,
+        },
+        "viewer": {
+            "min_active": viewer.get("min_active", 3),
+            "max_active": viewer.get("max_active", 8),
+            "entry_interval_sec": viewer.get("entry_interval_sec", 180),
+            "cooldown_sec": viewer.get("cooldown_sec", 300),
+            "tick_interval_sec": viewer.get("tick_interval_sec", 15),
+            "engagement_threshold": viewer.get("engagement_threshold", 20),
+        },
+    }
+
+
+@app.post("/api/config")
+async def update_config(body: ConfigUpdate):
+    raw = _read_config_yaml()
+
+    if body.llm is not None:
+        if "llm" not in raw:
+            raw["llm"] = {}
+        if body.llm.base_url is not None:
+            raw["llm"]["base_url"] = body.llm.base_url
+        if body.llm.api_key is not None:
+            if not (body.llm.api_key.startswith("sk-") and "****" in body.llm.api_key):
+                raw["llm"]["api_key"] = body.llm.api_key
+
+    if body.viewer is not None:
+        if "viewer" not in raw:
+            raw["viewer"] = {}
+        updates = body.viewer.model_dump(exclude_none=True)
+        raw["viewer"].update(updates)
+
+    _write_config_yaml(raw)
+    logger.info("Config updated via API, restarting...")
+    return {"status": "ok", "message": "Config saved, restarting..."}
+
+
+@app.post("/api/config/reset")
+async def reset_config():
+    if not CONFIG_DEFAULT_PATH.is_file():
+        return {"status": "error", "message": "Default config file not found"}
+    shutil.copy(str(CONFIG_DEFAULT_PATH), str(CONFIG_PATH))
+    logger.info("Config reset to defaults via API, restarting...")
+    return {"status": "ok", "message": "Config reset to defaults, restarting..."}
 
 
 @app.get("/{full_path:path}")
