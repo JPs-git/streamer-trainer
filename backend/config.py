@@ -46,14 +46,12 @@ class Config:
 
             llm_conf = raw["llm"]
             self.llm_provider = llm_conf["provider"]
-            api_key_env = llm_conf["api_key_env"]
-            api_key = os.environ.get(api_key_env)
-            if not api_key:
+            self.llm_api_key = llm_conf.get("api_key") or os.environ.get(llm_conf["api_key_env"]) or ""
+            if not self.llm_api_key:
                 raise ValueError(
-                    f"Environment variable '{api_key_env}' is not set. "
-                    "Please set it to your API key."
+                    f"Neither 'api_key' in config nor environment variable "
+                    f"'{llm_conf['api_key_env']}' is set."
                 )
-            self.llm_api_key = api_key
             self.llm_model = llm_conf["model"]
             self.llm_selector_model = llm_conf.get("selector_model", llm_conf["model"])
             self.llm_base_url = llm_conf.get("base_url")
