@@ -54,11 +54,14 @@ class ViewerScheduler:
         self._running = True
         logger.info("Scheduler loop started (paused=%s)", self._paused)
         while self._running:
+            next_tick = time.monotonic() + self.tick_interval
             try:
                 await self._tick()
             except Exception as e:
                 logger.error("Tick crashed: %s", e, exc_info=True)
-            await asyncio.sleep(self.tick_interval)
+            now = time.monotonic()
+            if now < next_tick:
+                await asyncio.sleep(next_tick - now)
 
     def stop(self):
         self._running = False
