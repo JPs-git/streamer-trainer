@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+import json
 import logging
 import random
 import time
@@ -11,16 +12,39 @@ from backend.viewer.models import VirtualViewer
 logger = logging.getLogger("scheduler")
 
 if TYPE_CHECKING:
-    from backend.llm.agent import AgentClient
     from backend.llm.client import LLMClient
     from backend.llm.generator import Generator
+
+_PROFILE_SYSTEM_PROMPT = "你是一个直播观众生成器。只输出 JSON，不要多余文字。"
+_PROFILE_USER_PROMPT = """生成一位直播观众，返回 JSON。
+要求：
+- name：中文昵称（2-3字）
+- persona：一句话性格描述（如"活泼外向的老粉，喜欢夸主播"）
+- relationship：老粉 或 路人 或 新关注
+- engagement：60-100 的数字
+
+JSON格式：{"name": "...", "persona": "...", "relationship": "...", "engagement": 数字}"""
+
+_COMMON_INTENTS = [
+    "夸主播操作",
+    "问游戏问题",
+    "吐槽失误",
+    "热情夸赞",
+    "积极互动",
+]
+
+_SILENCE_INTENTS = [
+    "催主播说话",
+    "闲聊等待",
+    "自言自语",
+    "分享感受",
+]
 
 
 class ViewerScheduler:
     def __init__(
         self,
         manager: ViewerManager,
-        agent: AgentClient,
         llm: LLMClient,
         generator: Generator,
         tick_interval: float = 15.0,
@@ -32,7 +56,6 @@ class ViewerScheduler:
         room_chat_log: Optional[list[dict]] = None,
     ):
         self.manager = manager
-        self.agent = agent
         self.llm = llm
         self.generator = generator
         self.tick_interval = tick_interval
@@ -45,6 +68,8 @@ class ViewerScheduler:
         self._running = False
         self._paused = True
         self.room_chat_log = room_chat_log if room_chat_log is not None else []
+        self._last_spoke_tick: dict[str, int] = {}
+        self._pending_profile: Optional[asyncio.Task] = None
         logger.info(
             "Scheduler initialized: tick=%ss threshold=%d",
             tick_interval, engagement_threshold,
@@ -87,66 +112,50 @@ class ViewerScheduler:
         active = self.manager.get_active_viewers()
         timeline_len = len(self.streamer_timeline)
         streamer_has_new = self._last_speech_index < timeline_len
-        silence_duration = self._compute_silence_duration(now)
 
         logger.debug(
-            "Tick: active=%d timeline=%d has_new=%s silence=%.0fs",
-            len(active), timeline_len, streamer_has_new, silence_duration,
+            "Tick: active=%d timeline=%d has_new=%s",
+            len(active), timeline_len, streamer_has_new,
         )
 
-        # 1. Basic decay (no personality type dependency)
+        # 1. Basic decay
         for v in active:
-            before = v.engagement
             decay = random.uniform(1, 5) + random.uniform(-2, 2)
             v.engagement = max(0, v.engagement - decay)
 
-        # 2. Gather state and call Agent
-        viewer_states = self._build_viewer_states(active)
-        latest_text = (
-            self.streamer_timeline[-1]["text"][:100]
-            if streamer_has_new and self.streamer_timeline else ""
-        )
-        room_stats = {
-            "active_count": len(active),
-            "max_active": self.manager.max_active,
-            "min_active": self.manager.min_active,
-        }
-
-        actions: list[dict] = []
-        try:
-            actions = await self.agent.decide(viewer_states, latest_text, silence_duration, room_stats)
-        except Exception as e:
-            logger.error("Agent.decide failed: %s", e)
-
-        # 3. Execute actions (speak tasks collected for parallel generation)
+        # 2. Rules engine decisions
         speak_tasks: list[asyncio.Task] = []
-        for action in actions:
-            try:
-                atype = action.get("type")
-                if atype == "schedule_speak":
-                    speak_tasks.append(asyncio.create_task(self._do_speak(action)))
-                elif atype == "spawn_viewer":
-                    await self._do_spawn(action)
-                elif atype == "adjust_engagement":
-                    self._do_adjust(action)
-                elif atype == "remove_viewer":
-                    await self._do_remove(action)
-                else:
-                    logger.warning("  Unknown action type: %s", atype)
-            except Exception as e:
-                logger.error("  Action failed: %s (%s)", action.get("type"), e)
+
+        # 2a. Remove low-engagement viewers
+        for v in active[:]:
+            if v.engagement <= self.engagement_threshold:
+                await self._do_leave(v)
+
+        # 2b. Schedule speakers
+        active = self.manager.get_active_viewers()
+        for v in active:
+            prob = (v.engagement / 100.0) * 0.6
+            if streamer_has_new:
+                prob *= 1.5
+            last_tick = self._last_spoke_tick.get(v.viewer_id)
+            if last_tick is not None and timeline_len - last_tick < 2:
+                prob *= 0.3
+            if random.random() < prob:
+                intent = self._pick_intent(v, streamer_has_new)
+                self._last_spoke_tick[v.viewer_id] = timeline_len
+                speak_tasks.append(asyncio.create_task(self._do_speak(v, intent)))
 
         if speak_tasks:
             await asyncio.gather(*speak_tasks)
 
-        # 4. Backfill: if below min_active, add simple viewers
-        if len(self.manager.get_active_viewers()) < self.manager.min_active:
-            logger.debug("  Below min_active after tick, backfilling...")
-            await self._backfill_to_min()
+        # 3. Backfill if below min_active
+        active = self.manager.get_active_viewers()
+        if len(active) < self.manager.min_active:
+            await self._backfill_viewer()
 
         self._last_speech_index = timeline_len
 
-        # 5. Broadcast viewer status heartbeat
+        # 4. Broadcast viewer status heartbeat
         active = self.manager.get_active_viewers()
         if self.broadcast_status:
             viewer_list = [
@@ -169,56 +178,95 @@ class ViewerScheduler:
             })
 
     # ------------------------------------------------------------------
-    # Agent action handlers
+    # Profile generation (LLM)
     # ------------------------------------------------------------------
 
-    async def _do_spawn(self, action: dict):
+    async def _generate_viewer_profile(self) -> dict:
+        try:
+            raw = await self.llm.chat(
+                system=_PROFILE_SYSTEM_PROMPT,
+                user=_PROFILE_USER_PROMPT,
+            )
+            profile = json.loads(raw)
+            return {
+                "name": profile.get("name", f"观众{random.randint(1,999)}"),
+                "persona": profile.get("persona", "普通观众"),
+                "relationship": profile.get("relationship", "路人"),
+                "follows": profile.get("relationship", "") in ("老粉", "新关注"),
+                "engagement": min(100, max(60, profile.get("engagement", 80))),
+            }
+        except Exception as e:
+            logger.warning("Profile generation failed: %s", e)
+            return {
+                "name": f"观众{random.randint(1,999)}",
+                "persona": "普通观众",
+                "relationship": "路人",
+                "follows": False,
+                "engagement": 80,
+            }
+
+    async def _enter_viewer(self, profile: dict):
         if len(self.manager.get_active_viewers()) >= self.manager.max_active:
-            logger.debug("  Spawn skipped: at max_active")
             return
         viewer_id = f"v_{int(time.time())}_{random.randint(100, 999)}"
         v = VirtualViewer(
             viewer_id=viewer_id,
-            name=action.get("name", "观众"),
-            persona=action.get("persona", ""),
-            follows=action.get("follows", True),
-            relationship=action.get("relationship", ""),
-            engagement=min(100, max(60, action.get("engagement", 80))),
+            name=profile["name"],
+            persona=profile["persona"],
+            follows=profile["follows"],
+            relationship=profile["relationship"],
+            engagement=profile["engagement"],
         )
         self.manager.add_viewer(v)
         self.manager.activate_viewer(v.viewer_id)
-        logger.info("  Enter: %s (%s, engagement=%d)", v.name, v.relationship, v.engagement)
+        logger.info(
+            "  Enter: %s (%s, engagement=%d)",
+            v.name, v.relationship, v.engagement,
+        )
         if self.broadcast_system:
             await self.broadcast_system("enter", v.name, v.viewer_id)
 
-    def _do_adjust(self, action: dict):
-        v = self.manager.get_viewer(action.get("viewer_id", ""))
-        if v and v.state == "active":
-            delta = action.get("delta", 0)
-            v.engagement = max(0, min(100, v.engagement + delta))
+    # ------------------------------------------------------------------
+    # Rules engine helpers
+    # ------------------------------------------------------------------
 
-    async def _do_speak(self, action: dict):
-        v = self.manager.get_viewer(action.get("viewer_id", ""))
-        if not v or v.state != "active":
-            return
-        intent = action.get("intent", "")
-        if not intent:
+    def _pick_intent(self, viewer: VirtualViewer, streamer_has_new: bool) -> str:
+        pool = list(_COMMON_INTENTS)
+        if not streamer_has_new:
+            pool.extend(_SILENCE_INTENTS)
+        if viewer.engagement > 70:
+            pool.append("热情夸赞")
+        if viewer.relationship == "老粉":
+            pool.append("用梗互动")
+        elif viewer.relationship == "路人":
+            pool.append("新手提问")
+        return random.choice(pool)
+
+    async def _do_leave(self, viewer: VirtualViewer):
+        logger.info("  Leave: %s (engagement=%d)", viewer.name, viewer.engagement)
+        self._last_spoke_tick.pop(viewer.viewer_id, None)
+        if self.broadcast_system:
+            await self.broadcast_system("leave", viewer.name, viewer.viewer_id)
+        self.manager.remove_viewer(viewer.viewer_id)
+
+    async def _do_speak(self, viewer: VirtualViewer, intent: str):
+        if viewer.state != "active":
             return
         delay = random.uniform(0, 4)
         await asyncio.sleep(delay)
-        if v.state != "active":
+        if viewer.state != "active":
             return
 
         current_asr = self.streamer_timeline[-1]["text"] if self.streamer_timeline else ""
         prompt = self.generator.build_prompt(
-            name=v.name,
-            persona=v.persona,
+            name=viewer.name,
+            persona=viewer.persona,
             room_chat_log=self.room_chat_log,
-            my_danmaku=v.memory.my_danmaku,
-            relationships=v.memory.relationships,
+            my_danmaku=viewer.memory.my_danmaku,
+            relationships=viewer.memory.relationships,
             current_asr=current_asr,
-            follows=v.follows,
-            relationship=v.relationship,
+            follows=viewer.follows,
+            relationship=viewer.relationship,
         )
         prompt += f"\n\n[发言意图]\n{intent}"
         raw = await self.llm.chat(
@@ -227,16 +275,17 @@ class ViewerScheduler:
         )
         text = self.generator.parse_danmaku(raw)
         if not text:
-            logger.warning("  Generator returned empty for %s", v.name)
+            logger.warning("  Generator returned empty for %s", viewer.name)
             return
-        v.memory.add_my_danmaku(text, int(time.time()), "streamer")
-        v.last_active = int(time.time())
-        v.interaction_count += 1
+        viewer.memory.add_my_danmaku(text, int(time.time()), "streamer")
+        viewer.last_active = int(time.time())
+        viewer.interaction_count += 1
+        viewer.engagement = min(100, viewer.engagement + random.uniform(3, 8))
         now = int(time.time())
         self.room_chat_log.append({
             "type": "danmaku",
-            "viewer_id": v.viewer_id,
-            "name": v.name,
+            "viewer_id": viewer.viewer_id,
+            "name": viewer.name,
             "text": text,
             "offset": now,
         })
@@ -244,52 +293,33 @@ class ViewerScheduler:
             self.room_chat_log[:50] = []
         msg = {
             "type": "danmaku",
-            "id": v.viewer_id,
-            "name": v.name,
+            "id": viewer.viewer_id,
+            "name": viewer.name,
             "text": text,
             "personality": "",
             "effect": "normal",
         }
-        logger.info("  Danmaku: %s: %s", v.name, text)
+        logger.info("  Danmaku: %s: %s", viewer.name, text)
         if self.broadcast_danmaku:
             await self.broadcast_danmaku(msg)
 
-    async def _do_remove(self, action: dict):
-        v = self.manager.get_viewer(action.get("viewer_id", ""))
-        if not v or v.state != "active":
-            return
-        logger.info("  Leave: %s (engagement=%d)", v.name, v.engagement)
-        if self.broadcast_system:
-            await self.broadcast_system("leave", v.name, v.viewer_id)
-        self.manager.remove_viewer(v.viewer_id)
-
     # ------------------------------------------------------------------
-    # Backfill for min_active
+    # Backfill
     # ------------------------------------------------------------------
 
-    async def _backfill_to_min(self):
-        """If Agent didn't spawn enough viewers, backfill with simple viewers."""
+    async def _backfill_viewer(self):
         count = 0
-        while len(self.manager.get_active_viewers()) < self.manager.min_active:
-            if len(self.manager.get_active_viewers()) >= self.manager.max_active:
+        while True:
+            active = self.manager.get_active_viewers()
+            if len(active) >= self.manager.min_active:
                 break
-            viewer_id = f"v_{int(time.time())}_{random.randint(100, 999)}"
-            v = VirtualViewer(
-                viewer_id=viewer_id,
-                name=f"观众{random.randint(1, 999)}",
-                persona="普通观众",
-                follows=True,
-                relationship="普通观众",
-                engagement=80,
-            )
-            self.manager.add_viewer(v)
-            self.manager.activate_viewer(v.viewer_id)
-            logger.info("  Backfill enter: %s (engagement=%d)", v.name, v.engagement)
-            if self.broadcast_system:
-                await self.broadcast_system("enter", v.name, v.viewer_id)
+            if len(active) >= self.manager.max_active:
+                break
+            profile = await self._generate_viewer_profile()
+            await self._enter_viewer(profile)
             count += 1
         if count:
-            logger.info("Backfill complete: %d viewers entered", count)
+            logger.info("Backfill complete: %d viewer(s) entered", count)
 
     # ------------------------------------------------------------------
     # Helpers
@@ -304,17 +334,3 @@ class ViewerScheduler:
             logger.error("Bad timeline entry: %s (offset=%r)", last, offset)
             return 0.0
         return now - offset
-
-    def _build_viewer_states(self, active: list[VirtualViewer]) -> list[dict]:
-        return [
-            {
-                "id": v.viewer_id,
-                "name": v.name,
-                "persona": v.persona,
-                "follows": v.follows,
-                "relationship": v.relationship,
-                "engagement": v.engagement,
-                "interaction_count": v.interaction_count,
-            }
-            for v in active
-        ]

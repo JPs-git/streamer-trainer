@@ -16,9 +16,6 @@ def mock_llm_and_asr():
         mock_instance.asr = MagicMock()
         mock_instance.asr.transcribe = MagicMock(return_value="主播说你好")
 
-        mock_instance.agent = MagicMock()
-        mock_instance.agent.decide = AsyncMock(return_value=[])
-
         mock_instance.generator = MagicMock()
         mock_instance.generator.build_prompt = MagicMock(return_value="prompt")
         mock_instance.generator.parse_danmaku = MagicMock(return_value="你好呀")

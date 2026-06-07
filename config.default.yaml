@@ -19,12 +19,6 @@ llm:
   temperature: 0.8
   max_tokens: 150
 
-agent:
-  model: "kimi-k2.6"
-  base_url: "https://api.moonshot.cn/v1"
-  timeout: 120.0
-  temperature: 0.6
-
 viewer:
   min_active: 3
   max_active: 8
