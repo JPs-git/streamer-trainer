@@ -74,7 +74,6 @@ class Config:
             self.viewer_cooldown_sec = viewer_conf["cooldown_sec"]
             self.viewer_tick_interval_sec = viewer_conf["tick_interval_sec"]
             self.viewer_engagement_threshold = viewer_conf["engagement_threshold"]
-            self.viewer_memory_max_streamer_log = viewer_conf["memory_max_streamer_log"]
         except KeyError as e:
             raise KeyError(f"Missing required config section/key in '{path}': {e}")
 

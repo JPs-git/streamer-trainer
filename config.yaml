@@ -31,6 +31,5 @@ viewer:
   max_active: 8
   entry_interval_sec: 180
   cooldown_sec: 300
-  memory_max_streamer_log: 50
   tick_interval_sec: 15
   engagement_threshold: 20

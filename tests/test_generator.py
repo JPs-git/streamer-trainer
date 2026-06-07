@@ -12,9 +12,8 @@ def test_build_prompt():
     prompt = g.build_prompt(
         name="小冰",
         persona="新来的好奇宝宝",
-        streamer_log=[{"text": "今天来玩一个新游戏", "offset": 12}],
+        room_chat_log=[{"type": "streamer", "name": "主播", "text": "今天来玩一个新游戏", "offset": 12}],
         my_danmaku=[],
-        other_danmaku=[],
         relationships={},
         current_asr="这游戏操作很简单新手五分钟上手",
         follows=True,
@@ -24,6 +23,7 @@ def test_build_prompt():
     assert "好奇宝宝" in prompt
     assert "这游戏操作很简单" in prompt
     assert "今天来玩一个新游戏" in prompt
+    assert "[主播] 今天来玩一个新游戏" in prompt
 
 
 def test_build_prompt_with_memory():
@@ -31,10 +31,11 @@ def test_build_prompt_with_memory():
     prompt = g.build_prompt(
         name="老王",
         persona="毒舌吐槽型",
-        streamer_log=[{"text": "主播说这个游戏很难", "offset": 1}],
+        room_chat_log=[
+            {"type": "streamer", "name": "主播", "text": "主播说这个游戏很难", "offset": 1},
+            {"type": "danmaku", "name": "小冰", "text": "问了游戏难度", "offset": 2},
+        ],
         my_danmaku=[{"text": "这就难了？", "offset": 2, "directed_to": "streamer"}],
-        other_danmaku=[{"from_id": "小冰", "directed_to": "streamer",
-                        "summary": "问了游戏难度"}],
         relationships={"小冰": "一起吐槽过"},
         current_asr="这个Boss我打了三次才过",
         follows=False,
@@ -43,6 +44,8 @@ def test_build_prompt_with_memory():
     assert "老王" in prompt
     assert "这就难了" in prompt
     assert "一起吐槽过" in prompt
+    assert "[主播] 主播说这个游戏很难" in prompt
+    assert "[小冰] 问了游戏难度" in prompt
 
 
 def test_parse_danmaku():

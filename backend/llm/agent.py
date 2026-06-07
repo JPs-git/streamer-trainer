@@ -4,6 +4,7 @@ import logging
 from typing import Any, Optional
 
 logger = logging.getLogger("agent")
+_llm_trace = logging.getLogger("llm_trace")
 
 TOOLS: list[dict[str, Any]] = [
     {
@@ -138,6 +139,26 @@ class AgentClient:
             return []
 
         msg = resp.choices[0].message
+
+        if msg.tool_calls:
+            response_str = json.dumps([
+                {"name": tc.function.name, "arguments": json.loads(tc.function.arguments)}
+                for tc in msg.tool_calls
+            ], ensure_ascii=False, indent=2)
+        else:
+            response_str = msg.content or "(no content, no tool calls)"
+
+        _llm_trace.debug(
+            "=== Agent Call model=%s ===\n"
+            "--- SYSTEM ---\n%s\n"
+            "--- USER ---\n%s\n"
+            "--- TOOLS ---\n%s\n"
+            "--- RESPONSE ---\n%s",
+            self.model, _SYSTEM_PROMPT, user_prompt,
+            json.dumps(TOOLS, ensure_ascii=False, indent=2),
+            response_str,
+        )
+
         if not msg.tool_calls:
             logger.debug("Agent returned no tool calls")
             return []

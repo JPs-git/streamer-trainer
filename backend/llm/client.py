@@ -3,6 +3,7 @@ import logging
 from typing import Any, Optional
 
 logger = logging.getLogger("llm")
+_llm_trace = logging.getLogger("llm_trace")
 
 
 class LLMClient:
@@ -66,6 +67,13 @@ class LLMClient:
             content = resp.choices[0].message.content or ""
             logger.debug("Response:\n%s", content)
             logger.debug("=== LLM End ===")
+            _llm_trace.debug(
+                "=== Generator Call model=%s ===\n"
+                "--- SYSTEM ---\n%s\n"
+                "--- USER ---\n%s\n"
+                "--- RESPONSE ---\n%s",
+                model_name, system, user, content,
+            )
             return content
         elif self.provider == "anthropic":
             resp = await self._client.messages.create(
@@ -78,5 +86,12 @@ class LLMClient:
             content = resp.content[0].text if resp.content else ""
             logger.debug("Response:\n%s", content)
             logger.debug("=== LLM End ===")
+            _llm_trace.debug(
+                "=== Generator Call model=%s ===\n"
+                "--- SYSTEM ---\n%s\n"
+                "--- USER ---\n%s\n"
+                "--- RESPONSE ---\n%s",
+                model_name, system, user, content,
+            )
             return content
         raise ValueError(f"Unsupported provider: {self.provider}")

@@ -29,6 +29,7 @@ class ViewerScheduler:
         broadcast_danmaku: Optional[Callable] = None,
         broadcast_status: Optional[Callable] = None,
         streamer_timeline: Optional[list[dict]] = None,
+        room_chat_log: Optional[list[dict]] = None,
     ):
         self.manager = manager
         self.agent = agent
@@ -43,6 +44,7 @@ class ViewerScheduler:
         self._last_speech_index = 0
         self._running = False
         self._paused = True
+        self.room_chat_log = room_chat_log if room_chat_log is not None else []
         logger.info(
             "Scheduler initialized: tick=%ss threshold=%d",
             tick_interval, engagement_threshold,
@@ -208,9 +210,8 @@ class ViewerScheduler:
         prompt = self.generator.build_prompt(
             name=v.name,
             persona=v.persona,
-            streamer_log=self.streamer_timeline,
+            room_chat_log=self.room_chat_log,
             my_danmaku=v.memory.my_danmaku,
-            other_danmaku=v.memory.other_danmaku,
             relationships=v.memory.relationships,
             current_asr=current_asr,
             follows=v.follows,
@@ -228,6 +229,16 @@ class ViewerScheduler:
         v.memory.add_my_danmaku(text, int(time.time()), "streamer")
         v.last_active = int(time.time())
         v.interaction_count += 1
+        now = int(time.time())
+        self.room_chat_log.append({
+            "type": "danmaku",
+            "viewer_id": v.viewer_id,
+            "name": v.name,
+            "text": text,
+            "offset": now,
+        })
+        if len(self.room_chat_log) > 200:
+            self.room_chat_log[:50] = []
         msg = {
             "type": "danmaku",
             "id": v.viewer_id,
@@ -237,9 +248,6 @@ class ViewerScheduler:
             "effect": "normal",
         }
         logger.info("  Danmaku: %s: %s", v.name, text)
-        for other in self.manager.get_active_viewers():
-            if other.viewer_id != v.viewer_id:
-                other.memory.add_other_danmaku(v.viewer_id, "streamer", text[:40])
         if self.broadcast_danmaku:
             await self.broadcast_danmaku(msg)
 

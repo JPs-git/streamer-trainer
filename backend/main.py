@@ -41,6 +41,18 @@ if not any(isinstance(h, logging.FileHandler) and h.baseFilename.endswith("app.l
     _file.setFormatter(_fmt)
     root.addHandler(_file)
 
+# ── LLM 交互专用日志 ────────────────────────────────────
+_llm_trace = logging.getLogger("llm_trace")
+_llm_trace.propagate = False
+if not _llm_trace.handlers:
+    _llm_handler = logging.FileHandler(str(_LOG_DIR / "llm.log"), mode="a", encoding="utf-8")
+    _llm_handler.setLevel(logging.DEBUG)
+    _llm_handler.setFormatter(logging.Formatter(
+        "%(asctime)s\n%(message)s\n", datefmt="%Y-%m-%d %H:%M:%S"
+    ))
+    _llm_trace.addHandler(_llm_handler)
+    _llm_trace.setLevel(logging.DEBUG)
+
 root.setLevel(logging.DEBUG)
 
 from backend.config import config
@@ -83,6 +95,7 @@ class StreamerTrainerApp:
             min_active=config.viewer_min_active,
         )
         self.streamer_timeline: list[dict] = []
+        self.room_chat_log: list[dict] = []
         self.danmaku_clients: set[WebSocket] = set()
         self.scheduler = ViewerScheduler(
             manager=self.viewer_manager,
@@ -95,6 +108,7 @@ class StreamerTrainerApp:
             broadcast_danmaku=self.broadcast_danmaku,
             broadcast_status=self.broadcast_status,
             streamer_timeline=self.streamer_timeline,
+            room_chat_log=self.room_chat_log,
         )
 
     async def broadcast_system(self, action: str, name: str, viewer_id: str):
@@ -185,6 +199,9 @@ async def audio_endpoint(ws: WebSocket):
                 if text.strip():
                     timestamp = int(time.time())
                     app_state.streamer_timeline.append({"text": text, "offset": timestamp})
+                    app_state.room_chat_log.append({"type": "streamer", "name": "主播", "text": text, "offset": timestamp})
+                    if len(app_state.room_chat_log) > 200:
+                        app_state.room_chat_log[:50] = []
     except WebSocketDisconnect:
         pass
 
@@ -239,6 +256,9 @@ async def debug_text_endpoint(body: DebugText):
     try:
         timestamp = int(time.time())
         app_state.streamer_timeline.append({"text": body.text, "offset": timestamp})
+        app_state.room_chat_log.append({"type": "streamer", "name": "主播", "text": body.text, "offset": timestamp})
+        if len(app_state.room_chat_log) > 200:
+            app_state.room_chat_log[:50] = []
         logger.info("Timeline: + '%s' (total %d entries)", body.text, len(app_state.streamer_timeline))
         await app_state.broadcast_danmaku({
             "type": "streamer",
