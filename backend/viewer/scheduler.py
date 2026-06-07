@@ -119,20 +119,27 @@ class ViewerScheduler:
         )
 
         # 1. Basic decay
+        decay_log = []
         for v in active:
-            decay = random.uniform(1, 5) + random.uniform(-2, 2)
+            decay = round(random.uniform(1, 5) + random.uniform(-2, 2), 1)
+            before = v.engagement
             v.engagement = max(0, v.engagement - decay)
+            decay_log.append(f"{v.name}: {before}->{v.engagement}(-{decay})")
+        logger.info("Decay: %s", ", ".join(decay_log))
 
         # 2. Rules engine decisions
         speak_tasks: list[asyncio.Task] = []
+        leaves = 0
 
         # 2a. Remove low-engagement viewers
         for v in active[:]:
             if v.engagement <= self.engagement_threshold:
                 await self._do_leave(v)
+                leaves += 1
 
         # 2b. Schedule speakers
         active = self.manager.get_active_viewers()
+        speak_log = []
         for v in active:
             prob = (v.engagement / 100.0) * 0.6
             if streamer_has_new:
@@ -140,16 +147,20 @@ class ViewerScheduler:
             last_tick = self._last_spoke_tick.get(v.viewer_id)
             if last_tick is not None and timeline_len - last_tick < 2:
                 prob *= 0.3
-            if random.random() < prob:
+            spoke = random.random() < prob
+            speak_log.append(f"{v.name}(eng={v.engagement},prob={prob:.2f})={'讲' if spoke else '静'}")
+            if spoke:
                 intent = self._pick_intent(v, streamer_has_new)
                 self._last_spoke_tick[v.viewer_id] = timeline_len
                 speak_tasks.append(asyncio.create_task(self._do_speak(v, intent)))
+        logger.info("Speak: %s", ", ".join(speak_log))
 
         if speak_tasks:
             await asyncio.gather(*speak_tasks)
 
         # 3. Backfill if below min_active
         active = self.manager.get_active_viewers()
+        before_backfill = len(active)
         if len(active) < self.manager.min_active:
             await self._backfill_viewer()
 
