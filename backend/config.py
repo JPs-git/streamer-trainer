@@ -19,14 +19,22 @@ class Config:
 
         if path is None:
             path = os.environ.get("CONFIG_PATH", "config.yaml")
+
+        config_file = Path(path)
+        if not config_file.is_file():
+            default_path = Path("config.default.yaml")
+            if default_path.is_file():
+                import shutil
+                shutil.copy(str(default_path), str(config_file))
+            else:
+                raise FileNotFoundError(
+                    f"Config file not found at: {os.path.abspath(path)}. "
+                    "Set CONFIG_PATH env var or ensure the file exists."
+                )
+
         try:
-            with open(path) as f:
+            with open(config_file) as f:
                 raw = yaml.safe_load(f)
-        except FileNotFoundError:
-            raise FileNotFoundError(
-                f"Config file not found at: {os.path.abspath(path)}. "
-                "Set CONFIG_PATH env var or ensure the file exists."
-            )
         except yaml.YAMLError as e:
             raise ValueError(f"Malformed YAML in config file '{path}': {e}")
 
