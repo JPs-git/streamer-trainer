@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
+  <title>系统配置</title>
+</head>
+<body>
+  <div id="config-container">
+    <div id="config-header">
+      <span>系统配置</span>
+      <a href="/" class="nav-link">← 返回直播间</a>
+    </div>
+
+    <div id="config-body">
+      <div class="config-group">
+        <div class="group-title">LLM 连接</div>
+        <div class="config-field">
+          <label for="llm-base-url">Base URL</label>
+          <input id="llm-base-url" type="text" placeholder="https://api.moonshot.cn/v1">
+        </div>
+        <div class="config-field">
+          <label for="llm-api-key">API Key</label>
+          <input id="llm-api-key" type="password" placeholder="sk-...">
+        </div>
+      </div>
+
+      <div class="config-group">
+        <div class="group-title">观众参数</div>
+        <div class="config-field">
+          <label for="viewer-min-active">最小活跃观众数</label>
+          <input id="viewer-min-active" type="number" min="0" max="20">
+        </div>
+        <div class="config-field">
+          <label for="viewer-max-active">最大活跃观众数</label>
+          <input id="viewer-max-active" type="number" min="1" max="50">
+        </div>
+        <div class="config-field">
+          <label for="viewer-entry-interval">入场间隔 (秒)</label>
+          <input id="viewer-entry-interval" type="number" min="10" max="600">
+        </div>
+        <div class="config-field">
+          <label for="viewer-cooldown">冷却时间 (秒)</label>
+          <input id="viewer-cooldown" type="number" min="10" max="3600">
+        </div>
+        <div class="config-field">
+          <label for="viewer-tick-interval">Tick 间隔 (秒)</label>
+          <input id="viewer-tick-interval" type="number" min="3" max="120">
+        </div>
+        <div class="config-field">
+          <label for="viewer-engagement">弹幕触发阈值</label>
+          <input id="viewer-engagement" type="number" min="1" max="100">
+        </div>
+      </div>
+
+      <div id="config-actions">
+        <button id="btn-save-config" class="btn-primary">保存</button>
+        <button id="btn-reset-config" class="btn-secondary">恢复默认</button>
+      </div>
+
+      <div id="config-status" class="status-hidden"></div>
+    </div>
+  </div>
+  <script src="config.js?v=20260607"></script>
+</body>
+</html>
