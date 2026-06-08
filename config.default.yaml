@@ -22,7 +22,6 @@ llm:
 viewer:
   min_active: 3
   max_active: 8
-  entry_interval_sec: 180
-  cooldown_sec: 300
+  churn_per_tick: 5
+  guider_ratio: 0.3
   tick_interval_sec: 15
-  engagement_threshold: 20

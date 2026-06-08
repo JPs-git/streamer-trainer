@@ -24,14 +24,14 @@ def mock_config_files(tmp_path):
     default_path = tmp_path / "config.default.yaml"
     with open(default_path, "w") as f:
         f.write("llm:\n  base_url: https://default.com/v1\n  api_key: sk-default-key-123\n")
-        f.write("viewer:\n  min_active: 3\n  max_active: 8\n  entry_interval_sec: 180\n")
-        f.write("  cooldown_sec: 300\n  tick_interval_sec: 15\n  engagement_threshold: 20\n")
+        f.write("viewer:\n  min_active: 3\n  max_active: 8\n  churn_per_tick: 5\n")
+        f.write("  tick_interval_sec: 15\n")
 
     config_path = tmp_path / "config.yaml"
     with open(config_path, "w") as f:
         f.write("llm:\n  base_url: https://api.moonshot.cn/v1\n  api_key: sk-mysupersecretkey\n")
-        f.write("viewer:\n  min_active: 3\n  max_active: 8\n  entry_interval_sec: 180\n")
-        f.write("  cooldown_sec: 300\n  tick_interval_sec: 15\n  engagement_threshold: 20\n")
+        f.write("viewer:\n  min_active: 3\n  max_active: 8\n  churn_per_tick: 5\n")
+        f.write("  tick_interval_sec: 15\n")
 
     with patch.object(main_module, "CONFIG_PATH", config_path), \
          patch.object(main_module, "CONFIG_DEFAULT_PATH", default_path):

@@ -37,20 +37,15 @@
           <input id="viewer-max-active" type="number" min="1" max="50">
         </div>
         <div class="config-field">
-          <label for="viewer-entry-interval">入场间隔 (秒)</label>
-          <input id="viewer-entry-interval" type="number" min="10" max="600">
-        </div>
-        <div class="config-field">
-          <label for="viewer-cooldown">冷却时间 (秒)</label>
-          <input id="viewer-cooldown" type="number" min="10" max="3600">
+          <label for="viewer-guider-ratio">引导型观众比例</label>
+          <input id="viewer-guider-ratio" type="number" min="0" max="1" step="0.1">
+
+          <label for="viewer-churn">每 Tick 波动人数</label>
+          <input id="viewer-churn" type="number" min="1" max="20">
         </div>
         <div class="config-field">
           <label for="viewer-tick-interval">Tick 间隔 (秒)</label>
           <input id="viewer-tick-interval" type="number" min="3" max="120">
-        </div>
-        <div class="config-field">
-          <label for="viewer-engagement">弹幕触发阈值</label>
-          <input id="viewer-engagement" type="number" min="1" max="100">
         </div>
       </div>
 

@@ -27,10 +27,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('llm-api-key').value = data.llm.api_key || '';
       document.getElementById('viewer-min-active').value = data.viewer.min_active;
       document.getElementById('viewer-max-active').value = data.viewer.max_active;
-      document.getElementById('viewer-entry-interval').value = data.viewer.entry_interval_sec;
-      document.getElementById('viewer-cooldown').value = data.viewer.cooldown_sec;
+      document.getElementById('viewer-churn').value = data.viewer.churn_per_tick;
+      document.getElementById('viewer-guider-ratio').value = data.viewer.guider_ratio;
       document.getElementById('viewer-tick-interval').value = data.viewer.tick_interval_sec;
-      document.getElementById('viewer-engagement').value = data.viewer.engagement_threshold;
       console.log('[配置] 当前配置:', JSON.parse(JSON.stringify(data)));
     } catch (err) {
       showStatus('加载配置失败: ' + err.message, 'error');
@@ -49,10 +48,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         viewer: {
           min_active: parseInt(document.getElementById('viewer-min-active').value) || 3,
           max_active: parseInt(document.getElementById('viewer-max-active').value) || 8,
-          entry_interval_sec: parseInt(document.getElementById('viewer-entry-interval').value) || 180,
-          cooldown_sec: parseInt(document.getElementById('viewer-cooldown').value) || 300,
+          churn_per_tick: parseInt(document.getElementById('viewer-churn').value) || 5,
+          guider_ratio: parseFloat(document.getElementById('viewer-guider-ratio').value) || 0.3,
           tick_interval_sec: parseInt(document.getElementById('viewer-tick-interval').value) || 15,
-          engagement_threshold: parseInt(document.getElementById('viewer-engagement').value) || 20,
         },
       };
       const resp = await fetch(CONFIG_API, {

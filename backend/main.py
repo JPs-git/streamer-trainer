@@ -96,7 +96,8 @@ class StreamerTrainerApp:
             llm=self.llm,
             generator=self.generator,
             tick_interval=config.viewer_tick_interval_sec,
-            engagement_threshold=config.viewer_engagement_threshold,
+            churn_per_tick=config.viewer_churn_per_tick,
+            guider_ratio=config.viewer_guider_ratio,
             broadcast_system=self.broadcast_system,
             broadcast_danmaku=self.broadcast_danmaku,
             broadcast_status=self.broadcast_status,
@@ -183,10 +184,9 @@ class LLMConfigModel(BaseModel):
 class ViewerConfigModel(BaseModel):
     min_active: Optional[int] = Field(default=None, ge=0, le=100)
     max_active: Optional[int] = Field(default=None, ge=1, le=200)
-    entry_interval_sec: Optional[int] = Field(default=None, ge=5, le=3600)
-    cooldown_sec: Optional[int] = Field(default=None, ge=5, le=86400)
+    churn_per_tick: Optional[int] = Field(default=None, ge=1, le=20)
+    guider_ratio: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     tick_interval_sec: Optional[int] = Field(default=None, ge=1, le=300)
-    engagement_threshold: Optional[int] = Field(default=None, ge=1, le=1000)
 
 
 class ConfigUpdate(BaseModel):
@@ -216,10 +216,9 @@ async def get_config():
         "viewer": {
             "min_active": viewer.get("min_active", 3),
             "max_active": viewer.get("max_active", 8),
-            "entry_interval_sec": viewer.get("entry_interval_sec", 180),
-            "cooldown_sec": viewer.get("cooldown_sec", 300),
+            "churn_per_tick": viewer.get("churn_per_tick", 5),
+            "guider_ratio": viewer.get("guider_ratio", 0.3),
             "tick_interval_sec": viewer.get("tick_interval_sec", 15),
-            "engagement_threshold": viewer.get("engagement_threshold", 20),
         },
     }
 

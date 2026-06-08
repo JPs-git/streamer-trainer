@@ -15,7 +15,6 @@ def test_viewer_creation():
     assert v.relationship == "老粉"
     assert v.state == "inactive"
     assert v.interaction_count == 0
-    assert v.engagement == 100
 
 
 def test_memory_append_danmaku():

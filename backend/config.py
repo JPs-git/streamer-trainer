@@ -70,10 +70,9 @@ class Config:
             viewer_conf = raw["viewer"]
             self.viewer_min_active = viewer_conf["min_active"]
             self.viewer_max_active = viewer_conf["max_active"]
-            self.viewer_entry_interval_sec = viewer_conf["entry_interval_sec"]
-            self.viewer_cooldown_sec = viewer_conf["cooldown_sec"]
+            self.viewer_churn_per_tick = viewer_conf.get("churn_per_tick", 5)
+            self.viewer_guider_ratio = viewer_conf.get("guider_ratio", 0.3)
             self.viewer_tick_interval_sec = viewer_conf["tick_interval_sec"]
-            self.viewer_engagement_threshold = viewer_conf["engagement_threshold"]
         except KeyError as e:
             raise KeyError(f"Missing required config section/key in '{path}': {e}")
 

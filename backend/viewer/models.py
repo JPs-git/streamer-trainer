@@ -2,6 +2,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal, Optional
 
+ViewerType = Literal["lurker", "guider"]
+
 
 @dataclass
 class ViewerMemory:
@@ -22,6 +24,7 @@ class VirtualViewer:
     viewer_id: str
     name: str
     persona: str
+    viewer_type: ViewerType = "lurker"
     follows: bool = True
     relationship: str = ""
     personality_type: str = ""
@@ -31,4 +34,3 @@ class VirtualViewer:
     last_active: Optional[int] = None
     deactivated_at: Optional[int] = None
     interaction_count: int = 0
-    engagement: int = 100  # 0-100

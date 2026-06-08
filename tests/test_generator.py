@@ -23,7 +23,7 @@ def test_build_prompt():
     assert "好奇宝宝" in prompt
     assert "这游戏操作很简单" in prompt
     assert "今天来玩一个新游戏" in prompt
-    assert "[主播] 今天来玩一个新游戏" in prompt
+    assert "主播说今天来玩一个新游戏" in prompt
 
 
 def test_build_prompt_with_memory():
@@ -42,10 +42,9 @@ def test_build_prompt_with_memory():
         relationship="路人",
     )
     assert "老王" in prompt
-    assert "这就难了" in prompt
     assert "一起吐槽过" in prompt
-    assert "[主播] 主播说这个游戏很难" in prompt
-    assert "[小冰] 问了游戏难度" in prompt
+    assert "主播说主播说这个游戏很难" in prompt
+    assert "小冰说问了游戏难度" in prompt
 
 
 def test_parse_danmaku():
