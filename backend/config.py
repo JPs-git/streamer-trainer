@@ -51,6 +51,9 @@ class Config:
             self.asr_device = asr_conf["device"]
             self.asr_compute_type = asr_conf["compute_type"]
             self.asr_download_timeout = asr_conf.get("download_timeout", 30.0)
+            self.vad_threshold = asr_conf.get("vad_threshold", 0.5)
+            self.silence_duration_ms = asr_conf.get("silence_duration_ms", 600)
+            self.max_segment_duration = asr_conf.get("max_segment_duration", 10.0)
 
             llm_conf = raw["llm"]
             self.llm_provider = llm_conf["provider"]

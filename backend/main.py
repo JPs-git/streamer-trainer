@@ -58,7 +58,12 @@ if not _llm_trace.handlers:
 root.setLevel(logging.DEBUG)
 
 from backend.config import config
-from backend.asr import ASREngine
+from backend.asr.pipeline import ASRPipeline
+from backend.asr.source import WSAudioSource
+from backend.asr.vad import VADEngine
+from backend.asr.buffer import AudioBuffer
+from backend.asr.transcriber import Transcriber
+from backend.asr.output import OutputHandler
 from backend.viewer.manager import ViewerManager
 from backend.viewer.scheduler import ViewerScheduler
 from backend.llm.client import LLMClient
@@ -67,7 +72,7 @@ from backend.llm.generator import Generator
 
 class StreamerTrainerApp:
     def __init__(self):
-        self.asr = ASREngine(
+        self.asr_transcriber = Transcriber(
             model_size=config.asr_model_size,
             device=config.asr_device,
             compute_type=config.asr_compute_type,
@@ -275,20 +280,24 @@ async def serve_frontend(full_path: str):
 @app.websocket("/audio")
 async def audio_endpoint(ws: WebSocket):
     await ws.accept()
-    audio_buffer = bytearray()
+    source = WSAudioSource(ws)
+    pipeline = ASRPipeline(
+        source=source,
+        vad=VADEngine(
+            vad_threshold=config.vad_threshold,
+            silence_duration_ms=config.silence_duration_ms,
+        ),
+        buffer=AudioBuffer(
+            max_segment_duration=config.max_segment_duration,
+        ),
+        transcriber=app_state.asr_transcriber,
+    )
+    output = OutputHandler(
+        timeline=app_state.streamer_timeline,
+        chat_log=app_state.room_chat_log,
+    )
     try:
-        while True:
-            data = await ws.receive_bytes()
-            audio_buffer.extend(data)
-            if len(audio_buffer) >= 32000:
-                text = app_state.asr.transcribe(bytes(audio_buffer))
-                audio_buffer.clear()
-                if text.strip():
-                    timestamp = int(time.time())
-                    app_state.streamer_timeline.append({"text": text, "offset": timestamp})
-                    app_state.room_chat_log.append({"type": "streamer", "name": "主播", "text": text, "offset": timestamp})
-                    if len(app_state.room_chat_log) > 200:
-                        app_state.room_chat_log[:50] = []
+        await pipeline.run(callback=output.on_result)
     except WebSocketDisconnect:
         pass
 

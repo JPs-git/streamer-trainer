@@ -13,8 +13,8 @@ def mock_llm_and_asr():
         mock_instance.llm = MagicMock()
         mock_instance.llm.chat = AsyncMock(return_value='你好')
 
-        mock_instance.asr = MagicMock()
-        mock_instance.asr.transcribe = MagicMock(return_value="主播说你好")
+        mock_instance.asr_transcriber = MagicMock()
+        mock_instance.asr_transcriber.transcribe = AsyncMock(return_value="主播说你好")
 
         mock_instance.generator = MagicMock()
         mock_instance.generator.build_prompt = MagicMock(return_value="prompt")
@@ -29,6 +29,7 @@ def mock_llm_and_asr():
         mock_instance.danmaku_clients = set()
         mock_instance.scheduler = MagicMock()
         mock_instance.streamer_timeline = []
+        mock_instance.room_chat_log = []
 
         yield
         from backend.main import _LazyAppState
