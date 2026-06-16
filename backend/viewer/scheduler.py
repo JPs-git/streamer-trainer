@@ -228,6 +228,8 @@ class ViewerScheduler:
                 system=_PROFILE_SYSTEM_PROMPT,
                 user=_PROFILE_USER_PROMPT,
             )
+            if raw is None:
+                raise ValueError("LLM returned None")
             profile = json.loads(raw)
             return {
                 "name": profile.get("name", f"观众{random.randint(1,999)}"),
@@ -305,6 +307,8 @@ class ViewerScheduler:
                 system=_GUIDER_SYSTEM_PROMPT,
                 user=prompt,
             )
+            if raw is None:
+                return
             text = self.generator.parse_danmaku(raw)
             if not text:
                 logger.warning("  Generator returned empty for %s", viewer.name)

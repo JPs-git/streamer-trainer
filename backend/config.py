@@ -72,6 +72,19 @@ class Config:
             self.llm_timeout = llm_conf.get("timeout", 10.0)
             self.llm_temperature = llm_conf["temperature"]
             self.llm_max_tokens = llm_conf["max_tokens"]
+            self.llm_request_interval = llm_conf.get("request_interval", 2.0)
+            self.llm_max_interval = llm_conf.get("max_interval", 15.0)
+
+            fallback_conf = llm_conf.get("fallback") or {}
+            self.llm_fallback_provider = fallback_conf.get("provider", "openai")
+            self.llm_fallback_api_key = (
+                fallback_conf.get("api_key")
+                or os.environ.get(fallback_conf.get("api_key_env", ""))
+                or None
+            )
+            self.llm_fallback_base_url = fallback_conf.get("base_url")
+            self.llm_fallback_model = fallback_conf.get("model", "")
+            self.llm_fallback_timeout = fallback_conf.get("timeout", 15.0)
 
             viewer_conf = raw["viewer"]
             self.viewer_min_active = viewer_conf["min_active"]

@@ -6,33 +6,36 @@ from backend.asr.vad import TranscriptionResult
 from backend.asr.frame import AudioFrame, encode_frame
 
 
-def test_output_handler_writes_to_timeline():
+@pytest.mark.asyncio
+async def test_output_handler_writes_to_timeline():
     from backend.asr.output import OutputHandler
     timeline = [{"text": "old", "offset": 100}]
     chat_log = []
     handler = OutputHandler(timeline=timeline, chat_log=chat_log)
     result = TranscriptionResult(text="hello", start_time=1.0, end_time=2.0)
-    handler.on_result(result)
+    await handler.on_result(result)
     assert len(timeline) == 2
     assert timeline[-1]["text"] == "hello"
     assert chat_log[-1]["type"] == "streamer"
 
 
-def test_output_handler_empty_text():
+@pytest.mark.asyncio
+async def test_output_handler_empty_text():
     from backend.asr.output import OutputHandler
     timeline = []
     chat_log = []
     handler = OutputHandler(timeline=timeline, chat_log=chat_log)
-    handler.on_result(TranscriptionResult(text="", start_time=0, end_time=0))
+    await handler.on_result(TranscriptionResult(text="", start_time=0, end_time=0))
     assert len(timeline) == 0
 
 
-def test_output_handler_trims_chat_log():
+@pytest.mark.asyncio
+async def test_output_handler_trims_chat_log():
     from backend.asr.output import OutputHandler
     chat_log = [{"type": "streamer", "text": str(i), "offset": i} for i in range(210)]
     timeline = []
     handler = OutputHandler(timeline=timeline, chat_log=chat_log)
-    handler.on_result(TranscriptionResult(text="x", start_time=0, end_time=0))
+    await handler.on_result(TranscriptionResult(text="x", start_time=0, end_time=0))
     assert len(chat_log) <= 200
 
 

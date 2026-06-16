@@ -88,6 +88,13 @@ class StreamerTrainerApp:
             temperature=config.llm_temperature,
             max_tokens=config.llm_max_tokens,
             timeout=config.llm_timeout,
+            request_interval=config.llm_request_interval,
+            max_interval=config.llm_max_interval,
+            fallback_provider=config.llm_fallback_provider,
+            fallback_api_key=config.llm_fallback_api_key,
+            fallback_base_url=config.llm_fallback_base_url,
+            fallback_model=config.llm_fallback_model,
+            fallback_timeout=config.llm_fallback_timeout,
         )
         self.generator = Generator()
         self.viewer_manager = ViewerManager(

@@ -16,7 +16,7 @@ class OutputHandler:
         self.chat_log = chat_log
         self.broadcast = broadcast
 
-    def on_result(self, result: TranscriptionResult):
+    async def on_result(self, result: TranscriptionResult):
         text = result.text.strip()
         if not text:
             return
@@ -27,7 +27,7 @@ class OutputHandler:
         logger.info("ASR: %s", text)
 
         if self.broadcast:
-            self.broadcast({
+            await self.broadcast({
                 "type": "streamer",
                 "text": text,
                 "timestamp": ts,
