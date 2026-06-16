@@ -20,7 +20,6 @@ def _parse_data_dir() -> Optional[Path]:
     for i, arg in enumerate(sys.argv):
         if arg == "--data-dir" and i + 1 < len(sys.argv):
             p = Path(sys.argv[i + 1]).resolve()
-            p.mkdir(parents=True, exist_ok=True)
             # Strip consumed args so child processes (uvicorn reload) don't re-parse
             sys.argv = sys.argv[:i] + sys.argv[i + 2:]
             return p
@@ -28,9 +27,8 @@ def _parse_data_dir() -> Optional[Path]:
 
 
 _DATA_DIR = _parse_data_dir()
-
-# Tell config module where to find config.yaml
 if _DATA_DIR:
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
     os.environ["CONFIG_PATH"] = str(_DATA_DIR / "config.yaml")
 
 # ── 防双加载 ──────────────────────────────────────────
