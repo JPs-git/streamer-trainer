@@ -15,6 +15,24 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from pathlib import Path
 
+# ── CLI arg parsing (must happen before any path-dependent setup) ──
+def _parse_data_dir() -> Optional[Path]:
+    for i, arg in enumerate(sys.argv):
+        if arg == "--data-dir" and i + 1 < len(sys.argv):
+            p = Path(sys.argv[i + 1]).resolve()
+            p.mkdir(parents=True, exist_ok=True)
+            # Strip consumed args so child processes (uvicorn reload) don't re-parse
+            sys.argv = sys.argv[:i] + sys.argv[i + 2:]
+            return p
+    return None
+
+
+_DATA_DIR = _parse_data_dir()
+
+# Tell config module where to find config.yaml
+if _DATA_DIR:
+    os.environ["CONFIG_PATH"] = str(_DATA_DIR / "config.yaml")
+
 # ── 防双加载 ──────────────────────────────────────────
 # python -m backend.main 将模块注册为 __main__ 而非 backend.main，
 # 后续 uvicorn.run("backend.main:app") 会重新导入导致所有模块级
@@ -24,8 +42,11 @@ if __name__ == "__main__" and _own_key not in sys.modules:
     sys.modules[_own_key] = sys.modules["__main__"]
 
 # ── 日志 ─────────────────────────────────────────────
-_LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
-_LOG_DIR.mkdir(exist_ok=True)
+if _DATA_DIR:
+    _LOG_DIR = _DATA_DIR / "logs"
+else:
+    _LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
+_LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 _fmt = logging.Formatter("%(asctime)s [%(name)s] %(levelname)s %(message)s", datefmt="%H:%M:%S")
 
@@ -175,8 +196,17 @@ app = FastAPI(lifespan=lifespan)
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
-CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
-CONFIG_DEFAULT_PATH = Path(__file__).resolve().parent.parent / "config.default.yaml"
+if _DATA_DIR:
+    CONFIG_PATH = _DATA_DIR / "config.yaml"
+    default_dst = _DATA_DIR / "config.default.yaml"
+    if not default_dst.is_file():
+        src = Path(__file__).resolve().parent.parent / "config.default.yaml"
+        if src.is_file():
+            shutil.copy(str(src), str(default_dst))
+    CONFIG_DEFAULT_PATH = default_dst
+else:
+    CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
+    CONFIG_DEFAULT_PATH = Path(__file__).resolve().parent.parent / "config.default.yaml"
 
 
 def _read_config_yaml() -> dict:
