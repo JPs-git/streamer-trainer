@@ -1,0 +1,32 @@
+appId: com.streamer-trainer.app
+productName: StreamerTrainer
+copyright: Copyright © 2026
+
+directories:
+  output: release
+
+files:
+  - electron/**/*
+  - package.json
+
+extraResources:
+  - from: dist/backend.exe
+    to: ./
+    filter:
+      - "**/*"
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: electron/assets/icon.ico
+
+nsis:
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+  deleteAppDataOnUninstall: false
+  installerIcon: electron/assets/icon.ico
+  uninstallerIcon: electron/assets/icon.ico
+  installerHeaderIcon: electron/assets/icon.ico

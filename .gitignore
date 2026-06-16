@@ -7,3 +7,9 @@ logs/
 config.yaml
 backend/asr/models/
 backend/data/*.wav
+
+# Electron
+electron/assets/icon.ico
+node_modules/
+release/
+dist/
