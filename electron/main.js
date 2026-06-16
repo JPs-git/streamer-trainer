@@ -4,6 +4,7 @@ const {
   Tray,
   Menu,
   nativeImage,
+  dialog,
 } = require("electron");
 const { spawn } = require("child_process");
 const path = require("path");
@@ -12,10 +13,14 @@ const fs = require("fs");
 
 const BACKEND_PORT = 8765;
 const BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`;
+const BACKEND_WAIT_RETRIES = 30;
+const BACKEND_KILL_TIMEOUT_MS = 3000;
 
 let mainWindow = null;
 let tray = null;
 let backendProcess = null;
+let backendKillTimer = null;
+let backendPollAborted = false;
 
 // ── Backend management ──────────────────────────────
 
@@ -62,9 +67,21 @@ function startBackend() {
 }
 
 function stopBackend() {
+  if (backendKillTimer) {
+    clearTimeout(backendKillTimer);
+    backendKillTimer = null;
+  }
   if (backendProcess) {
     console.log("[electron] Stopping backend...");
+    backendPollAborted = true;
     backendProcess.kill();
+    // SIGKILL fallback if process doesn't exit gracefully
+    backendKillTimer = setTimeout(() => {
+      if (backendProcess) {
+        console.log("[electron] Backend still alive, sending SIGKILL");
+        backendProcess.kill("SIGKILL");
+      }
+    }, BACKEND_KILL_TIMEOUT_MS);
     backendProcess = null;
   }
 }
@@ -72,6 +89,10 @@ function stopBackend() {
 function waitForBackend(retries) {
   return new Promise((resolve, reject) => {
     const check = (n) => {
+      if (backendPollAborted) {
+        reject(new Error("Backend wait aborted by shutdown"));
+        return;
+      }
       if (n <= 0) {
         reject(new Error("Backend failed to start within timeout"));
         return;
@@ -160,17 +181,26 @@ function createTray() {
 // ── App lifecycle ───────────────────────────────────
 
 app.whenReady().then(async () => {
+  app.isQuitting = false;
   startBackend();
   try {
-    await waitForBackend(30);
+    await waitForBackend(BACKEND_WAIT_RETRIES);
   } catch (err) {
     console.error(`[electron] ${err.message}`);
+    dialog.showErrorBox(
+      "后端启动失败",
+      `后端服务未能启动。\n\n${err.message}\n\n请检查 log 后重试。`
+    );
   }
   createWindow();
   createTray();
 });
 
 app.on("before-quit", () => {
+  if (tray) {
+    tray.destroy();
+    tray = null;
+  }
   stopBackend();
 });
 
