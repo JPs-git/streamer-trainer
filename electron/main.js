@@ -76,10 +76,11 @@ function stopBackend() {
     backendPollAborted = true;
     backendProcess.kill();
     // SIGKILL fallback if process doesn't exit gracefully
+    const proc = backendProcess;
     backendKillTimer = setTimeout(() => {
-      if (backendProcess) {
+      if (proc.exitCode === null) {
         console.log("[electron] Backend still alive, sending SIGKILL");
-        backendProcess.kill("SIGKILL");
+        proc.kill("SIGKILL");
       }
     }, BACKEND_KILL_TIMEOUT_MS);
     backendProcess = null;
