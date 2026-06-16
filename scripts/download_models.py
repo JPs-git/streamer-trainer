@@ -1,59 +1,63 @@
-"""预下载 Whisper ASR 模型到本地 HuggingFace 缓存。
+"""预下载 SenseVoice ONNX ASR 模型 + Silero VAD ONNX 模型。
 
 用法:
     uv run python scripts/download_models.py
-    uv run python scripts/download_models.py --model tiny
-    uv run python scripts/download_models.py --model large-v3
-
-默认模型从 config.yaml 的 asr.model_size 读取。
 """
 
 import argparse
-import sys
+import tarfile
+import urllib.request
 from pathlib import Path
 
-import yaml
+SENSEVOICE_URL = (
+    "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/"
+    "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2"
+)
+SILERO_VAD_URL = (
+    "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx"
+)
+
+MODELS_DIR = Path(__file__).resolve().parent.parent / "backend" / "asr" / "models"
 
 
-def get_default_model() -> str:
-    config_path = Path(__file__).resolve().parent.parent / "config.yaml"
-    try:
-        with open(config_path) as f:
-            raw = yaml.safe_load(f)
-        return raw.get("asr", {}).get("model_size", "base")
-    except Exception as e:
-        print(f"Warning: could not read config.yaml ({e}), falling back to 'base'")
-        return "base"
+def download_file(url: str, dest: Path) -> None:
+    print(f"Downloading {url}...")
+    urllib.request.urlretrieve(url, dest)
+    print(f"  -> {dest} ({dest.stat().st_size / 1024 / 1024:.1f} MB)")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Pre-download Whisper ASR model")
-    parser.add_argument(
-        "--model",
-        default=None,
-        help="Model size/name (default: read from config.yaml)",
-    )
-    parser.add_argument(
-        "--cache-dir",
-        default=None,
-        help="HuggingFace cache directory (default: ~/.cache/huggingface/hub/)",
-    )
+    parser = argparse.ArgumentParser(description="Pre-download ONNX ASR models")
+    parser.add_argument("--sensevoice", action="store_true", help="Download SenseVoice model only")
+    parser.add_argument("--vad", action="store_true", help="Download VAD model only")
     args = parser.parse_args()
 
-    model_name = args.model or get_default_model()
-    kwargs = {}
-    if args.cache_dir:
-        kwargs["cache_dir"] = args.cache_dir
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
-    print(f"Downloading model '{model_name}'...")
-    print(f"Cache directory: {args.cache_dir or '~/.cache/huggingface/hub/'}")
-    print("This may take a few minutes depending on model size and network speed.")
-    print()
+    do_sensevoice = not args.vad or args.sensevoice
+    do_vad = not args.sensevoice or args.vad
 
-    from faster_whisper.utils import download_model
+    if do_sensevoice:
+        tar_path = MODELS_DIR / "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2"
+        model_dir = MODELS_DIR / "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17"
+        if not model_dir.is_dir():
+            download_file(SENSEVOICE_URL, tar_path)
+            print("Extracting...")
+            with tarfile.open(tar_path, "r:bz2") as tar:
+                tar.extractall(path=MODELS_DIR)
+            tar_path.unlink()
+            print(f"  Extracted to {model_dir}")
+        else:
+            print(f"SenseVoice model already exists at {model_dir}")
 
-    path = download_model(model_name, **kwargs)
-    print(f"Done! Model cached at: {path}")
+    if do_vad:
+        vad_path = MODELS_DIR / "silero_vad.onnx"
+        if not vad_path.is_file():
+            download_file(SILERO_VAD_URL, vad_path)
+        else:
+            print(f"VAD model already exists at {vad_path}")
+
+    print("\nDone! Models ready at:", MODELS_DIR)
 
 
 if __name__ == "__main__":

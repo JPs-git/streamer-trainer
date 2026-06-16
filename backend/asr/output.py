@@ -4,7 +4,7 @@ import time
 import logging
 from typing import Callable, Optional
 
-from backend.asr.transcriber import TranscriptionResult
+from backend.asr.vad import TranscriptionResult
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,14 @@ class OutputHandler:
         ts = int(time.time())
         self.timeline.append({"text": text, "offset": ts})
         self.chat_log.append({"type": "streamer", "name": "主播", "text": text, "offset": ts})
+        logger.info("ASR: %s", text)
+
+        if self.broadcast:
+            self.broadcast({
+                "type": "streamer",
+                "text": text,
+                "timestamp": ts,
+            })
 
         if len(self.chat_log) > 200:
             self.chat_log[:50] = []

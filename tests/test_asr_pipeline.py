@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 from backend.asr.vad import SpeechSegment
-from backend.asr.transcriber import TranscriptionResult
+from backend.asr.vad import TranscriptionResult
 from backend.asr.frame import AudioFrame, encode_frame
 
 
@@ -65,6 +65,7 @@ async def test_pipeline_full_flow():
         None,
         SpeechSegment(audio=np.zeros(32000, dtype=np.float32), start_time=0.0, end_time=2.0, final=True),
     ]
+    mock_buffer.flush.return_value = None
 
     mock_transcriber = AsyncMock()
     mock_transcriber.transcribe = AsyncMock(return_value=TranscriptionResult(
@@ -92,10 +93,12 @@ async def test_pipeline_empty_source():
     tmp.write(b"")
     tmp.close()
 
+    mock_buffer = MagicMock(spec=AudioBuffer)
+    mock_buffer.flush.return_value = None
     pipeline = ASRPipeline(
         source=FileAudioSource(tmp.name),
         vad=MagicMock(spec=VADEngine),
-        buffer=MagicMock(spec=AudioBuffer),
+        buffer=mock_buffer,
         transcriber=AsyncMock(),
     )
     callback = AsyncMock()

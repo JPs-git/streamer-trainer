@@ -73,10 +73,11 @@ from backend.llm.generator import Generator
 class StreamerTrainerApp:
     def __init__(self):
         self.asr_transcriber = Transcriber(
-            model_size=config.asr_model_size,
-            device=config.asr_device,
-            compute_type=config.asr_compute_type,
-            download_timeout=config.asr_download_timeout,
+            model_path=config.asr_model_path,
+            tokens_path=config.asr_tokens_path,
+            num_threads=config.asr_num_threads,
+            language=config.asr_language,
+            use_itn=config.asr_use_itn,
         )
         self.llm = LLMClient(
             provider=config.llm_provider,
@@ -284,6 +285,7 @@ async def audio_endpoint(ws: WebSocket):
     pipeline = ASRPipeline(
         source=source,
         vad=VADEngine(
+            model_path=config.asr_vad_model_path,
             vad_threshold=config.vad_threshold,
             silence_duration_ms=config.silence_duration_ms,
         ),
@@ -295,6 +297,7 @@ async def audio_endpoint(ws: WebSocket):
     output = OutputHandler(
         timeline=app_state.streamer_timeline,
         chat_log=app_state.room_chat_log,
+        broadcast=app_state.broadcast_danmaku,
     )
     try:
         await pipeline.run(callback=output.on_result)

@@ -47,10 +47,13 @@ class Config:
             self.port = server_conf["port"]
 
             asr_conf = raw["asr"]
-            self.asr_model_size = asr_conf["model_size"]
-            self.asr_device = asr_conf["device"]
-            self.asr_compute_type = asr_conf["compute_type"]
-            self.asr_download_timeout = asr_conf.get("download_timeout", 30.0)
+            self.asr_engine = asr_conf.get("engine", "onnx")
+            self.asr_model_path = asr_conf.get("model_path", "")
+            self.asr_tokens_path = asr_conf.get("tokens_path", "")
+            self.asr_vad_model_path = asr_conf.get("vad_model_path", "")
+            self.asr_num_threads = asr_conf.get("num_threads", 4)
+            self.asr_language = asr_conf.get("language", "auto")
+            self.asr_use_itn = asr_conf.get("use_itn", True)
             self.vad_threshold = asr_conf.get("vad_threshold", 0.5)
             self.silence_duration_ms = asr_conf.get("silence_duration_ms", 600)
             self.max_segment_duration = asr_conf.get("max_segment_duration", 10.0)

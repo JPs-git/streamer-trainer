@@ -7,12 +7,13 @@ dependencies = [
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.27.0",
     "websockets>=12.0",
-    "faster-whisper>=1.0.0",
     "httpx>=0.27.0",
     "openai>=1.12.0",
     "pyyaml>=6.0",
     "python-dotenv>=1.0.0",
-    "silero-vad>=5.0",
+    "onnxruntime>=1.18.0",
+    "kaldi-native-fbank>=1.0",
+
 ]
 
 [project.optional-dependencies]
@@ -25,6 +26,7 @@ dev = [
 dev = [
     "pytest>=9.0.3",
     "pytest-asyncio>=1.4.0",
+    "sounddevice>=0.5.5",
 ]
 
 
