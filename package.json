@@ -4,7 +4,7 @@
   "description": "实时弹幕生成系统 — 主播培训工具",
   "main": "electron/main.js",
   "scripts": {
-    "build:backend": "scripts\\build-backend.bat",
+    "build:backend": "scripts/build-backend.bat",
     "package": "electron-builder",
     "release": "npm run build:backend && npm run package",
     "start": "electron ."
