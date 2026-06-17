@@ -8,6 +8,8 @@ import time
 from contextlib import asynccontextmanager
 from typing import Optional
 
+_IS_PACKAGED = getattr(sys, "frozen", False)
+
 import uvicorn
 import yaml
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -411,6 +413,6 @@ if __name__ == "__main__":
         "backend.main:app",
         host=config.host,
         port=config.port,
-        reload=True,
-        reload_includes=["config.yaml"],
+        reload=not _IS_PACKAGED,
+        reload_includes=["config.yaml"] if not _IS_PACKAGED else None,
     )

@@ -1,4 +1,4 @@
-# 主播模拟器 v1.0.0 MVP 发布方案
+# StreamerTrainer v1.0.0 MVP 发布方案
 
 Date: 2026-06-17 | Status: Draft
 
@@ -41,15 +41,15 @@ config.yaml 中 api_key 字段
 
 - **操作系统**：Windows 10+ x64
 - **安装包格式**：NSIS one-click installer（无管理员要求）
-- **安装路径**：`%LOCALAPPDATA%\Programs\主播模拟器\`
-- **数据路径**：`%APPDATA%\主播模拟器\`（config.yaml + logs/）
+- **安装路径**：`%LOCALAPPDATA%\Programs\StreamerTrainer\`
+- **数据路径**：`%APPDATA%\StreamerTrainer\`（config.yaml + logs/）
 - **卸载行为**：彻底删除所有用户数据
 
 ## 4. 功能变更
 
 ### 4.1 配置变更自动重启
 
-- Electron 主进程通过 `fs.watchFile` 监控 `%APPDATA%/主播模拟器/config.yaml`
+- Electron 主进程通过 `fs.watchFile` 监控 `%APPDATA%/StreamerTrainer/config.yaml`
 - 变更检测加入 500ms debounce，防止多次保存触发连锁重启
 - 重启流程：`stopBackend()` → 等待端口释放 → `startBackend()` → 前端显示"配置已生效"
 - 通过 `backendPollAborted` 避免重启过程中的健康检查误报
@@ -64,9 +64,9 @@ config.yaml 中 api_key 字段
 | 位置 | 当前值 | 目标值 |
 |------|--------|--------|
 | `package.json` | `"version": "1.0.0"` | `"version": "1.0.0"` |
-| `electron-builder.yml` | `productName: StreamerTrainer` | `productName: 主播模拟器` |
+| `electron-builder.yml` | `productName: StreamerTrainer` | `productName: StreamerTrainer` |
 | `pyproject.toml` | `version = "0.1.0"` | `version = "1.0.0"` |
-| NSIS 安装包名 | `StreamerTrainer-Setup-1.0.0.exe` | `主播模拟器-Setup-1.0.0.exe` |
+| NSIS 安装包名 | `StreamerTrainer-Setup-1.0.0.exe` | `StreamerTrainer-Setup-1.0.0.exe` |
 
 ### 4.4 配置文件更新
 
@@ -123,9 +123,9 @@ viewer:
 
   3. npm run package
      → electron-builder
-     → release/主播模拟器-Setup-1.0.0.exe (~250MB)
+     → release/StreamerTrainer-Setup-1.0.0.exe (~250MB)
 
-产物: release/主播模拟器-Setup-1.0.0.exe
+产物: release/StreamerTrainer-Setup-1.0.0.exe
 ```
 
 ## 6. 改动清单
@@ -134,7 +134,7 @@ viewer:
 |------|----------|------|
 | `config.default.yaml` | 修改 | 更新 ASR 配置 + LLM 默认使用 OpenRouter + 内置 key 占位 |
 | `electron/main.js` | 修改 | 新增 fs.watch + 单例锁 + 自动重启逻辑 |
-| `electron-builder.yml` | 修改 | `productName: 主播模拟器`, `deleteAppDataOnUninstall: true` |
+| `electron-builder.yml` | 修改 | `productName: StreamerTrainer`, `deleteAppDataOnUninstall: true` |
 | `scripts/build-backend.bat` | 修改 | 注入 OpenRouter key 到 config.default.yaml |
 | `pyproject.toml` | 修改 | `version = "1.0.0"` |
 | `package.json` | 确认 | 确认 `version` 一致 |

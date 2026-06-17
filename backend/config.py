@@ -22,7 +22,9 @@ class Config:
 
         config_file = Path(path)
         if not config_file.is_file():
-            default_path = Path("config.default.yaml")
+            default_path = config_file.parent / "config.default.yaml"
+            if not default_path.is_file():
+                default_path = Path("config.default.yaml")
             if default_path.is_file():
                 import shutil
                 shutil.copy(str(default_path), str(config_file))

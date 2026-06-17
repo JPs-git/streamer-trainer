@@ -47,7 +47,7 @@ function getBackendPath() {
 }
 
 function getDataDir() {
-  return path.join(app.getPath("appData"), "主播模拟器");
+  return path.join(app.getPath("appData"), "streamer-trainer");
 }
 
 function startBackend() {
