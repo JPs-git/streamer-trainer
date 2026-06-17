@@ -1,6 +1,11 @@
 @echo off
 setlocal enabledelayedexpansion
 
+:: ── PowerShell 用户注意 ──
+:: 不要在 PowerShell 用 set VAR=value，要用:
+::   $env:OPENROUTER_BUILD_KEY = "sk-or-v1-xxx..."
+:: 或者直接在 cmd.exe 中运行本脚本。
+
 set ROOT=%~dp0..
 set DIST=%ROOT%\dist
 set BUILD=%ROOT%\build
@@ -13,6 +18,9 @@ if not exist "%BUILD%" mkdir "%BUILD%"
 :: Generate config.default.yaml with built-in OpenRouter key
 if not "%OPENROUTER_BUILD_KEY%"=="" (
     echo Injecting OpenRouter build key into config.default.yaml
+    :: Mask key in log for security
+    set "MASKED_KEY=%OPENROUTER_BUILD_KEY:~0,12%"
+    echo   Key: !MASKED_KEY!... (masked)
     powershell -Command "(Get-Content '%ROOT%\config.default.yaml') -replace 'api_key: \"\"', 'api_key: \"%OPENROUTER_BUILD_KEY%\"' | Set-Content '%BUILD%\config.default.yaml'"
 ) else (
     echo WARNING: OPENROUTER_BUILD_KEY not set, using empty api_key
@@ -31,7 +39,11 @@ if exist "%ROOT%\.venv\Scripts\python.exe" (
 )
 
 :: Ensure PyInstaller is installed
-"%PYTHON%" -m pip install pyinstaller >nul 2>&1
+"%PYTHON%" -m pip install pyinstaller
+if errorlevel 1 (
+    echo ERROR: Failed to install PyInstaller
+    exit /b 1
+)
 
 :: Build
 "%PYTHON%" -m PyInstaller ^
