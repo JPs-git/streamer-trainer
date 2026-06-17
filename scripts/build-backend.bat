@@ -20,7 +20,7 @@ if not "%OPENROUTER_BUILD_KEY%"=="" (
     echo Injecting OpenRouter build key into config.default.yaml
     :: Mask key in log for security
     set "MASKED_KEY=%OPENROUTER_BUILD_KEY:~0,12%"
-    echo   Key: !MASKED_KEY!... (masked)
+    echo   Key: !MASKED_KEY!... [masked]
     powershell -Command "(Get-Content '%ROOT%\config.default.yaml') -replace 'api_key: \"\"', 'api_key: \"%OPENROUTER_BUILD_KEY%\"' | Set-Content '%BUILD%\config.default.yaml'"
 ) else (
     echo WARNING: OPENROUTER_BUILD_KEY not set, using empty api_key
@@ -39,9 +39,13 @@ if exist "%ROOT%\.venv\Scripts\python.exe" (
 )
 
 :: Ensure PyInstaller is installed
-"%PYTHON%" -m pip install pyinstaller
+where uv >nul 2>nul && (
+    uv pip install pyinstaller
+) || (
+    "%PYTHON%" -m pip install pyinstaller
+)
 if errorlevel 1 (
-    echo ERROR: Failed to install PyInstaller
+    echo ERROR: Failed to install PyInstaller. Try: uv pip install pyinstaller
     exit /b 1
 )
 
