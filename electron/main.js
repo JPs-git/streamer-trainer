@@ -22,6 +22,21 @@ let backendProcess = null;
 let backendKillTimer = null;
 let backendPollAborted = false;
 
+// ── Single instance lock ────────────────────────────
+
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
+
 // ── Backend management ──────────────────────────────
 
 function getBackendPath() {
@@ -32,7 +47,7 @@ function getBackendPath() {
 }
 
 function getDataDir() {
-  return path.join(app.getPath("appData"), "StreamerTrainer");
+  return path.join(app.getPath("appData"), "主播模拟器");
 }
 
 function startBackend() {
@@ -75,7 +90,6 @@ function stopBackend() {
     console.log("[electron] Stopping backend...");
     backendPollAborted = true;
     backendProcess.kill();
-    // SIGKILL fallback if process doesn't exit gracefully
     const proc = backendProcess;
     backendKillTimer = setTimeout(() => {
       if (proc.exitCode === null) {
@@ -106,6 +120,48 @@ function waitForBackend(retries) {
     };
     check(retries);
   });
+}
+
+async function restartBackend() {
+  console.log("[electron] Restarting backend...");
+  backendPollAborted = true;
+  stopBackend();
+
+  await new Promise((resolve) => setTimeout(resolve, BACKEND_KILL_TIMEOUT_MS + 500));
+
+  backendPollAborted = false;
+  startBackend();
+
+  try {
+    await waitForBackend(BACKEND_WAIT_RETRIES);
+    console.log("[electron] Backend restarted successfully");
+  } catch (err) {
+    console.error("[electron] Backend restart failed:", err.message);
+    dialog.showErrorBox(
+      "后端重启失败",
+      `配置修改后后端重启失败。\n\n${err.message}\n\n请手动重启应用。`
+    );
+  }
+}
+
+// ── Config file watcher ─────────────────────────────
+
+function watchConfig() {
+  const configPath = path.join(getDataDir(), "config.yaml");
+  let debounceTimer = null;
+
+  try {
+    fs.watchFile(configPath, { interval: 500 }, (curr, prev) => {
+      if (curr.mtimeMs === prev.mtimeMs) return;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        restartBackend();
+      }, 500);
+    });
+    console.log(`[electron] Watching config: ${configPath}`);
+  } catch (err) {
+    console.error("[electron] Failed to watch config:", err.message);
+  }
 }
 
 // ── Window management ───────────────────────────────
@@ -154,7 +210,7 @@ function createTray() {
   }
 
   tray = new Tray(icon);
-  tray.setToolTip("Streamer Trainer");
+  tray.setToolTip("主播模拟器");
 
   const contextMenu = Menu.buildFromTemplate([
     {
@@ -197,6 +253,10 @@ app.whenReady().then(async () => {
   }
   createWindow();
   createTray();
+
+  if (app.isPackaged) {
+    watchConfig();
+  }
 });
 
 app.on("before-quit", () => {
@@ -208,7 +268,6 @@ app.on("before-quit", () => {
 });
 
 app.on("window-all-closed", () => {
-  // Don't quit on last window close (tray keeps running)
 });
 
 app.on("activate", () => {

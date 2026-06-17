@@ -3,28 +3,33 @@ server:
   port: 8765
 
 asr:
-  model_size: "base"
-  device: "cpu"
-  compute_type: "int8"
-  download_timeout: 30.0
+  engine: onnx
+  model_path: "backend/asr/models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/model.int8.onnx"
+  tokens_path: "backend/asr/models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/tokens.txt"
+  vad_model_path: "backend/asr/models/silero_vad.onnx"
+  num_threads: 4
+  language: auto
+  use_itn: true
   vad_threshold: 0.5
   silence_duration_ms: 600
   max_segment_duration: 10
 
 llm:
-  provider: "openai"
-  api_key_env: "MOONSHOT_API_KEY"
+  provider: openai
+  api_key_env: "OPENROUTER_API_KEY"
   api_key: ""
-  base_url: "https://api.moonshot.cn/v1"
-  model: "moonshot-v1-8k"
-  selector_model: "moonshot-v1-8k"
-  timeout: 10.0
+  base_url: "https://openrouter.ai/api/v1"
+  model: "openrouter/free"
+  selector_model: "openrouter/free"
+  timeout: 15.0
   temperature: 0.8
   max_tokens: 150
+  request_interval: 2.0
+  max_interval: 15.0
 
 viewer:
-  min_active: 3
-  max_active: 8
+  min_active: 5
+  max_active: 20
   churn_per_tick: 5
   guider_ratio: 0.3
-  tick_interval_sec: 15
+  tick_interval_sec: 10

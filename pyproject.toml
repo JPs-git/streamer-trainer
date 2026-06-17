@@ -1,6 +1,6 @@
 [project]
 name = "streamer-trainer"
-version = "0.1.0"
+version = "1.0.0"
 description = "基于主播语音的实时弹幕生成系统"
 requires-python = ">=3.11"
 dependencies = [

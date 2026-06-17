@@ -1,5 +1,5 @@
 appId: com.streamer-trainer.app
-productName: StreamerTrainer
+productName: 主播模拟器
 copyright: Copyright © 2026
 
 directories:
@@ -26,7 +26,7 @@ nsis:
   oneClick: true
   perMachine: false
   allowToChangeInstallationDirectory: false
-  deleteAppDataOnUninstall: false
+  deleteAppDataOnUninstall: true
   installerIcon: electron/assets/icon.ico
   uninstallerIcon: electron/assets/icon.ico
   installerHeaderIcon: electron/assets/icon.ico
