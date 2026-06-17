@@ -112,7 +112,7 @@ function waitForBackend(retries) {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 420,
+    width: 1280,
     height: 700,
     resizable: true,
     show: false,
@@ -123,7 +123,7 @@ function createWindow() {
     },
   });
 
-  mainWindow.loadURL(BACKEND_URL);
+  mainWindow.loadURL(BACKEND_URL + "/app.html");
 
   mainWindow.once("ready-to-show", () => {
     mainWindow.show();

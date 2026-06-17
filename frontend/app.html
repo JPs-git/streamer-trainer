@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Streamer Trainer</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #1a1a2e;
+      font-family: -apple-system, "Microsoft YaHei", "PingFang SC", sans-serif;
+      color: #e0e0e0;
+    }
+
+    #app {
+      display: grid;
+      grid-template-columns: 1fr 420px;
+      grid-template-areas: "left danmaku";
+      height: 100vh;
+      gap: 0;
+    }
+
+    #left {
+      grid-area: left;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    #pane-config {
+      flex: 1 1 auto;
+      position: relative;
+      background: #1a1a2e;
+      overflow: hidden;
+      min-height: 0;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-left: none;
+      border-top: none;
+    }
+
+    #pane-control {
+      flex: 0 0 40px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 0 16px;
+      background: #0f0f1e;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-left: none;
+      border-bottom: none;
+    }
+
+    #pane-danmaku {
+      grid-area: danmaku;
+      position: relative;
+      background: #1a1a2e;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-right: none;
+      border-top: none;
+      border-left: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .pane iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+      background: #1a1a2e;
+    }
+
+    .ctrl-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #e0e0e0;
+      padding: 6px 18px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      white-space: nowrap;
+      transition: background 0.2s;
+    }
+
+    .ctrl-btn:hover { background: rgba(255, 255, 255, 0.15); }
+    .ctrl-btn.active { background: #4FC3F7; border-color: #4FC3F7; color: #1a1a2e; font-weight: 600; }
+
+    .ctrl-label {
+      font-size: 12px;
+      color: #888;
+      white-space: nowrap;
+      margin-right: auto;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="left">
+      <div id="pane-config" class="pane">
+        <iframe src="/config.html"></iframe>
+      </div>
+      <div id="pane-control">
+        <span class="ctrl-label" id="ctrl-status">就绪</span>
+        <button id="btn-toggle-scheduler" class="ctrl-btn">▶ 开始</button>
+        <button id="btn-toggle-mic" class="ctrl-btn">🎤 麦克风开关</button>
+      </div>
+    </div>
+
+    <div id="pane-danmaku" class="pane">
+      <iframe src="/"></iframe>
+    </div>
+  </div>
+
+  <script>
+    const danmakuFrame = document.querySelector('#pane-danmaku iframe');
+    const btnSched = document.getElementById('btn-toggle-scheduler');
+    const btnMic = document.getElementById('btn-toggle-mic');
+    const statusEl = document.getElementById('ctrl-status');
+
+    let schedulerRunning = false;
+    let micOn = false;
+
+    btnSched.addEventListener('click', async () => {
+      const action = schedulerRunning ? 'pause' : 'resume';
+      try {
+        const resp = await fetch('/control/scheduler', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ action }),
+        });
+        const data = await resp.json();
+        if (data.status === 'ok') {
+          schedulerRunning = data.paused ? false : true;
+          btnSched.textContent = schedulerRunning ? '⏸ 暂停' : '▶ 开始';
+          btnSched.classList.toggle('active', schedulerRunning);
+          statusEl.textContent = schedulerRunning ? '调度器运行中' : '调度器已暂停';
+          try { danmakuFrame.contentWindow.postMessage({ type: 'scheduler', running: schedulerRunning }, '*'); } catch (e) {}
+        }
+      } catch (err) {
+        console.error('Scheduler control failed:', err);
+        statusEl.textContent = '调度器控制失败';
+      }
+    });
+
+    btnMic.addEventListener('click', () => {
+      micOn = !micOn;
+      btnMic.textContent = micOn ? '🔴 麦克风开' : '🎤 麦克风开关';
+      btnMic.classList.toggle('active', micOn);
+      statusEl.textContent = micOn ? '麦克风已开启（采集逻辑待接入）' : '麦克风已关闭';
+      console.log('[control] mic toggled:', micOn);
+    });
+  </script>
+</body>
+</html>
