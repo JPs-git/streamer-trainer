@@ -15,6 +15,14 @@ echo === Building backend.exe with PyInstaller ===
 if not exist "%DIST%" mkdir "%DIST%"
 if not exist "%BUILD%" mkdir "%BUILD%"
 
+:: Check ASR models exist
+if not exist "%ROOT%\backend\asr\models\silero_vad.onnx" (
+    echo ERROR: ASR models not found. Download them first:
+    echo   scripts\download-models.bat
+    echo   or: uv run python scripts/download_models.py
+    exit /b 1
+)
+
 :: Generate config.default.yaml with built-in OpenRouter key
 if not "%OPENROUTER_BUILD_KEY%"=="" (
     echo Injecting OpenRouter build key into config.default.yaml
