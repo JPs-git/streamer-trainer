@@ -124,6 +124,119 @@
     let schedulerRunning = false;
     let micOn = false;
 
+    // ── Mic audio capture ────────────────────────────────
+    let audioWs = null;
+    let mediaStream = null;
+    let audioCtx = null;
+    let scriptProcessor = null;
+    let micSourceNode = null;
+    let micStartTime = 0;
+
+    function encodeAudioFrame(pcmBuffer, timestamp, flags) {
+      const header = new ArrayBuffer(14);
+      const view = new DataView(header);
+      view.setUint8(0, 0xaa);
+      view.setUint8(1, 0xbb);
+      view.setUint32(2, pcmBuffer.byteLength, true);
+      view.setUint32(6, timestamp, true);
+      view.setUint16(10, audioCtx?.sampleRate || 16000, true);
+      view.setUint8(12, 1);
+      view.setUint8(13, flags || 0);
+      const frame = new Uint8Array(14 + pcmBuffer.byteLength);
+      frame.set(new Uint8Array(header), 0);
+      frame.set(new Uint8Array(pcmBuffer), 14);
+      return frame.buffer;
+    }
+
+    function micCleanup() {
+      if (scriptProcessor) {
+        try { scriptProcessor.disconnect(); } catch {}
+        scriptProcessor = null;
+      }
+      if (micSourceNode) {
+        try { micSourceNode.disconnect(); } catch {}
+        micSourceNode = null;
+      }
+      if (audioCtx) {
+        audioCtx.close().catch(() => {});
+        audioCtx = null;
+      }
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(t => t.stop());
+        mediaStream = null;
+      }
+      if (audioWs) {
+        try { audioWs.close(); } catch {}
+        audioWs = null;
+      }
+    }
+
+    async function micStart() {
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioCtx = new AudioContext({ sampleRate: 16000 });
+        micSourceNode = audioCtx.createMediaStreamSource(mediaStream);
+
+        audioWs = new WebSocket(`ws://${location.host}/audio`);
+        audioWs.binaryType = 'arraybuffer';
+        await new Promise((resolve, reject) => {
+          audioWs.onopen = resolve;
+          audioWs.onerror = () => reject(new Error('WS connection failed'));
+        });
+        audioWs.onclose = () => {
+          if (micOn) micStop();
+        };
+
+        scriptProcessor = audioCtx.createScriptProcessor(4096, 1, 1);
+        const silentGain = audioCtx.createGain();
+        silentGain.gain.value = 0;
+        micStartTime = performance.now();
+
+        scriptProcessor.onaudioprocess = (event) => {
+          if (!audioWs || audioWs.readyState !== WebSocket.OPEN) return;
+          const input = event.inputBuffer.getChannelData(0);
+          const len = input.length;
+          const buf = new ArrayBuffer(len * 2);
+          const dv = new DataView(buf);
+          for (let i = 0; i < len; i++) {
+            const s = Math.max(-1, Math.min(1, input[i]));
+            dv.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+          }
+          audioWs.send(encodeAudioFrame(buf, performance.now() - micStartTime, 0));
+        };
+
+        micSourceNode.connect(scriptProcessor);
+        scriptProcessor.connect(silentGain);
+        silentGain.connect(audioCtx.destination);
+
+        statusEl.textContent = '🎙 麦克风录制中';
+        console.log('[mic] started');
+      } catch (err) {
+        console.error('[mic] start failed:', err);
+        micCleanup();
+        if (err.name === 'NotAllowedError') {
+          statusEl.textContent = '❌ 需要麦克风权限';
+        } else if (err.name === 'NotFoundError') {
+          statusEl.textContent = '❌ 未发现麦克风设备';
+        } else {
+          statusEl.textContent = '❌ 麦克风启动失败';
+        }
+        micOn = false;
+        btnMic.textContent = '🎤 麦克风开关';
+        btnMic.classList.remove('active');
+      }
+    }
+
+    function micStop() {
+      if (audioWs && audioWs.readyState === WebSocket.OPEN) {
+        const empty = new ArrayBuffer(0);
+        try { audioWs.send(encodeAudioFrame(empty, performance.now() - micStartTime, 2)); } catch {}
+      }
+      micCleanup();
+      statusEl.textContent = '麦克风已关闭';
+      console.log('[mic] stopped');
+    }
+
     btnSched.addEventListener('click', async () => {
       const action = schedulerRunning ? 'pause' : 'resume';
       try {
@@ -147,11 +260,20 @@
     });
 
     btnMic.addEventListener('click', () => {
-      micOn = !micOn;
-      btnMic.textContent = micOn ? '🔴 麦克风开' : '🎤 麦克风开关';
-      btnMic.classList.toggle('active', micOn);
-      statusEl.textContent = micOn ? '麦克风已开启（采集逻辑待接入）' : '麦克风已关闭';
-      console.log('[control] mic toggled:', micOn);
+      if (!micOn) {
+        micOn = true;
+        btnMic.textContent = '...';
+        btnMic.classList.add('active');
+        micStart();
+      } else {
+        micOn = false;
+        micStop();
+        btnMic.textContent = '🎤 麦克风开关';
+        btnMic.classList.remove('active');
+      }
+    });
+    window.addEventListener('beforeunload', () => {
+      if (micOn) micStop();
     });
   </script>
 </body>

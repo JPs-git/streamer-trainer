@@ -117,16 +117,21 @@ class LLMClient:
                 content = await self._call_api(self._client, model_name, system, user)
             except Exception as e:
                 primary_failed = True
-                if "RateLimitError" in type(e).__name__ and self._fallback_client is not None:
+                rate_limited = "RateLimitError" in type(e).__name__
+                timed_out = "Timeout" in type(e).__name__
+                if (rate_limited or timed_out) and self._fallback_client is not None:
                     self._current_interval = min(self._current_interval * 1.5, self.max_interval)
                     logger.warning(
-                        "Primary LLM rate limited (interval=%.1fs), trying fallback...",
+                        "Primary LLM failed (%s), trying fallback (interval=%.1fs)...",
+                        "rate limited" if rate_limited else "timed out",
                         self._current_interval,
                     )
                     try:
+                        kwargs = {}
+                        if rate_limited:
+                            kwargs["extra_body"] = {"reasoning": {"enabled": False}}
                         content = await self._call_api(
-                            self._fallback_client, self.fallback_model, system, user,
-                            extra_body={"reasoning": {"enabled": False}},
+                            self._fallback_client, self.fallback_model, system, user, **kwargs,
                         )
                         logger.info("Fallback LLM succeeded")
                         primary_failed = False
